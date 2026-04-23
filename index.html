@@ -169,12 +169,12 @@
     <div class="setup-icon">🏍️</div>
     <div class="setup-title">Benvenuto su MotoRoute</div>
     <div class="setup-desc">
-      Per funzionare, questa app usa l'API di Anthropic (Claude AI).<br><br>
-      Ottieni la tua chiave API gratuita su <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys → Create Key.<br><br>
+      Per funzionare, questa app usa l'API di OpenRouter (LLM multipli).<br><br>
+      Ottieni la tua chiave API gratuita su <a href="https://openrouter.ai/" target="_blank">openrouter.ai</a> → Get API Keys<br><br>
       La chiave viene salvata solo sul tuo dispositivo.
     </div>
-    <div class="input-label">API Key Anthropic</div>
-    <input type="password" class="text-input mb1" id="setup-key" placeholder="sk-ant-api03-..." autocomplete="off">
+    <div class="input-label">API Key OpenRouter</div>
+    <input type="password" class="text-input mb1" id="setup-key" placeholder="sk-or-..." autocomplete="off">
     <div class="mt1"></div>
     <div class="input-label">La tua base di partenza</div>
     <input type="text" class="text-input mb1" id="setup-home" placeholder="es. Perugia, PG" value="Perugia, PG">
@@ -277,8 +277,8 @@
     <button class="btn btn-amber" style="margin-top: 0.5rem;" onclick="saveHome()">Salva base</button>
   </div>
   <div class="settings-section" style="margin-top: 1.5rem;">
-    <div class="settings-title">API Key</div>
-    <input type="password" class="text-input mb1" id="settings-key-input" placeholder="sk-ant-api03-..." autocomplete="off">
+    <div class="settings-title">API Key OpenRouter</div>
+    <input type="password" class="text-input mb1" id="settings-key-input" placeholder="sk-or-..." autocomplete="off">
     <button class="btn btn-outline mt1" onclick="saveKey()">Aggiorna chiave</button>
   </div>
   <div class="settings-section" style="margin-top: 1.5rem;">
@@ -346,7 +346,7 @@ function updateBottomNav(id) {
 function saveSetup() {
   const key = document.getElementById('setup-key').value.trim();
   const home = document.getElementById('setup-home').value.trim() || 'Perugia, PG';
-  if (!key || !key.startsWith('sk-ant')) { toast('Inserisci una chiave API valida'); return; }
+  if (!key || !key.startsWith('sk-')) { toast('Inserisci una chiave API valida'); return; }
   LS.set('mr_key', key);
   LS.set('mr_home', home);
   document.getElementById('homebase-display').textContent = home;
@@ -460,16 +460,38 @@ Rispondi SOLO con un oggetto JSON valido, senza markdown, senza backtick, senza 
 Le waypoints devono essere 5-8 luoghi reali verificabili in Italia. ${state.type === 'circolare' ? 'Ultima waypoint = punto di partenza (ritorno a ' + home + ').' : ''} Nel maps_link, spazi → +.`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-opus-4-5', max_tokens: 1200, messages: [{ role: 'user', content: prompt }] })
-    });
+    const res = await fetch(
+	  'https://openrouter.ai/api/v1/chat/completions',
+	  {
+		method: 'POST',
+		headers: {
+		  'Content-Type': 'application/json',
+		  'Authorization': `Bearer ${key}`,
+		  'HTTP-Referer': location.origin,     // richiesto da OpenRouter
+		  'X-Title': 'MotoRoute'
+		},
+		body: JSON.stringify({
+		  model: 'openai/gpt-4o-mini',
+		  temperature: 0.6,
+		  max_tokens: 1200,
+		  messages: [
+			{
+			  role: 'system',
+			  content: 'Sei un esperto di percorsi motociclistici italiani.'
+			},
+			{
+			  role: 'user',
+			  content: prompt
+			}
+		  ]
+		})
+	  }
+	);
     if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Errore API'); }
     const data = await res.json();
-    const text = data.content.filter(i => i.type === 'text').map(i => i.text).join('');
-    const clean = text.replace(/```json|```/g, '').trim();
-    const route = JSON.parse(clean);
+    const text = data.choices[0].message.content;
+	const clean = text.replace(/```json|```/g, '').trim();
+	const route = JSON.parse(clean);
     currentRoute = route;
     saveToHistory(route);
     renderResult(route);
