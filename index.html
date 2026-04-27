@@ -440,9 +440,10 @@ Parametri:
 - Direzione principale: ${dirText}
 - Tipo: ${state.type}
 ${prefsText}
-- Evita sempre autostrade e strade noiose. Privilegia statali, provinciali panoramiche.
+- Evita sempre autostrade, superstrade e raccordi. Privilegia statali (SS) e provinciali (SP) panoramiche.
 - Privilegia strade con curve, salite, borghi storici, valichi, viste particolari.
 - Solo asfalto, niente sterrato.
+- Le waypoints devono ancorare il percorso sulle strade secondarie: includi piccoli paesi, valichi o punti panoramici lungo la strada, così da impedire a Google Maps di usare scorciatoie veloci.
 
 Rispondi SOLO con un oggetto JSON valido, senza markdown, senza backtick, senza altro testo:
 {
@@ -453,11 +454,14 @@ Rispondi SOLO con un oggetto JSON valido, senza markdown, senza backtick, senza 
   "waypoints": [{"name": "Nome Luogo", "address": "Luogo, PV"}],
   "description": "2-3 frasi sul percorso, cosa si vede, perché è bello",
   "stops": ["Sosta consigliata 1 con breve motivo", "Sosta 2"],
-  "notes": "Note pratiche brevi oppure stringa vuota",
-  "maps_link": "https://www.google.com/maps/dir/Luogo1,+PV/Luogo2,+PV/..."
+  "notes": "Note pratiche brevi oppure stringa vuota"
 }
 
-Le waypoints devono essere 5-8 luoghi reali verificabili in Italia. ${state.type === 'circolare' ? 'Ultima waypoint = punto di partenza (ritorno a ' + home + ').' : ''} Nel maps_link, spazi → +.`;
+REGOLE TASSATIVE per le waypoints:
+- Devono essere ESATTAMENTE tra 5 e 9 waypoints in totale (mai meno di 5, mai più di 9).
+- La PRIMA waypoint deve essere sempre "${home}".
+- ${state.type === 'circolare' ? `L\'ULTIMA waypoint deve essere sempre "${home}" (ritorno al punto di partenza). Le tappe intermedie sono i luoghi del percorso.` : `L\'ultima waypoint è la destinazione finale.`}
+- Luoghi reali e verificabili in Italia.`;
 
   try {
     const res = await fetch(
@@ -492,6 +496,8 @@ Le waypoints devono essere 5-8 luoghi reali verificabili in Italia. ${state.type
     const text = data.choices[0].message.content;
 	const clean = text.replace(/```json|```/g, '').trim();
 	const route = JSON.parse(clean);
+    route.type = state.type;
+    route.home = home;
     currentRoute = route;
     saveToHistory(route);
     renderResult(route);
@@ -525,14 +531,26 @@ function renderResult(r) {
 }
 
 function openMaps() {
-  if (!currentRoute) return;
-  window.open(currentRoute.maps_link, '_blank');
+  if (!currentRoute || !currentRoute.waypoints || !currentRoute.waypoints.length) return;
+  const wps = currentRoute.waypoints;
+  const origin = encodeURIComponent(wps[0].address);
+  const destination = encodeURIComponent(wps[wps.length - 1].address);
+  const middle = wps.slice(1, -1).map(w => encodeURIComponent(w.address)).join('|');
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving&avoid=highways`;
+  if (middle) url += `&waypoints=${middle}`;
+  window.open(url, '_blank');
 }
 
 function shareRoute() {
   if (!currentRoute) return;
   const r = currentRoute;
-  const text = `🏍️ ${r.title}\n≈ ${r.distance_km} km · ${r.time_hours}h · ${r.difficulty}\n\nTappe:\n${(r.waypoints||[]).map((w,i) => `${i+1}. ${w.name}`).join('\n')}\n\n🗺 ${r.maps_link}`;
+  const wps = r.waypoints || [];
+  const origin = encodeURIComponent(wps[0]?.address || '');
+  const destination = encodeURIComponent(wps[wps.length - 1]?.address || '');
+  const middle = wps.slice(1, -1).map(w => encodeURIComponent(w.address)).join('|');
+  let mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving&avoid=highways`;
+  if (middle) mapsUrl += `&waypoints=${middle}`;
+  const text = `🏍️ ${r.title}\n≈ ${r.distance_km} km · ${r.time_hours}h · ${r.difficulty}\n\nTappe:\n${wps.map((w,i) => `${i+1}. ${w.name}`).join('\n')}\n\n🗺 ${mapsUrl}`;
   if (navigator.share) {
     navigator.share({ title: r.title, text: text }).catch(() => {});
   } else {
