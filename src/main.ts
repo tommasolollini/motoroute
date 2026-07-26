@@ -9,6 +9,7 @@ import { drawRoute, clearRoute, fitToRoute } from './route-layer';
 import { buildGpx, downloadGpx, parseGpx } from './gpx';
 import { generateLoop } from './loop';
 import { COMPASS, lineDistanceKm } from './geo';
+import { getQuietProfileId } from './quiet-profile';
 import { saveRoute, allRoutes, deleteRoute, type SavedRoute } from './storage';
 import type { Feature, LineString } from 'geojson';
 
@@ -139,7 +140,12 @@ let currentRoute: RouteResult | null = null;
 let routeToken = 0;
 const routeOptions: RouteOptions = { avoidHighways: false, preference: 'recommended' };
 
+let quietProfileId: string | null = null;
+void getQuietProfileId().then((id) => { quietProfileId = id; });
+
 function runRoute(points: maplibregl.LngLat[]): Promise<RouteResult> {
+  // "Evita autostrade" -> quiet-roads profile on BRouter (avoids superstrade too).
+  if (routeOptions.avoidHighways && quietProfileId) return routeThrough(points, quietProfileId);
   return hasOrs() ? routeOrs(points, routeOptions) : routeThrough(points);
 }
 
