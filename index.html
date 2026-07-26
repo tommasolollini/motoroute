@@ -58,7 +58,7 @@
         <p class="hint" id="hint">Tocca la mappa per la partenza, poi la destinazione. Ogni tocco aggiunge una tappa; trascina i punti per correggere.</p>
         <div class="wp-list" id="wp-list" hidden></div>
         <div class="route-opts" id="route-opts" hidden>
-          <label class="opt-toggle"><input type="checkbox" id="opt-avoid-hw" /> <span>🛣️ Evita autostrade e superstrade</span></label>
+          <label class="opt-toggle"><input type="checkbox" id="opt-avoid-hw" checked /> <span>🛣️ Evita autostrade</span></label>
           <div class="seg" id="opt-pref" role="group" aria-label="Tipo di percorso">
             <button type="button" data-pref="recommended" class="active">Consigliato</button>
             <button type="button" data-pref="fastest">Veloce</button>
@@ -68,6 +68,9 @@
           <div class="rs-metric"><span class="rs-val" id="rs-km">—</span><span class="rs-unit">km</span></div>
           <div class="rs-sep"></div>
           <div class="rs-metric"><span class="rs-val" id="rs-time">—</span><span class="rs-unit">tempo di guida</span></div>
+        </div>
+        <div class="regen-row" id="regen-row" hidden>
+          <button class="btn btn-outline" id="btn-regen">🎲 Rifai diverso</button>
         </div>
         <div class="export-row" id="export-row" hidden>
           <button class="btn btn-outline" id="btn-save">★ Salva</button>

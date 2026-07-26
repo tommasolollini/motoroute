@@ -30,6 +30,8 @@ const rsKm = document.getElementById('rs-km') as HTMLSpanElement;
 const rsTime = document.getElementById('rs-time') as HTMLSpanElement;
 const errBox = document.getElementById('err') as HTMLParagraphElement;
 const exportRow = document.getElementById('export-row') as HTMLDivElement;
+const regenRow = document.getElementById('regen-row') as HTMLDivElement;
+const btnRegen = document.getElementById('btn-regen') as HTMLButtonElement;
 const btnGpx = document.getElementById('btn-gpx') as HTMLButtonElement;
 const btnMaps = document.getElementById('btn-maps') as HTMLButtonElement;
 const btnClear = document.getElementById('btn-clear') as HTMLButtonElement;
@@ -140,15 +142,21 @@ let anelloDir = 'rand';
 
 let currentRoute: RouteResult | null = null;
 let routeToken = 0;
-const routeOptions: RouteOptions = { avoidHighways: false, preference: 'recommended' };
+const routeOptions: RouteOptions = { avoidHighways: true, preference: 'recommended' };
+let lastLoop: { start: maplibregl.LngLat; targetKm: number } | null = null;
+let regenAlt = 0;
 
 let quietProfileId: string | null = null;
-void getQuietProfileId().then((id) => { quietProfileId = id; });
+void getQuietProfileId().then((id) => {
+  quietProfileId = id;
+  // Default is "avoid highways" ON; once the profile is ready, apply it.
+  if (routeOptions.avoidHighways && waypoints.ready) void recompute();
+});
 
-function runRoute(points: maplibregl.LngLat[]): Promise<RouteResult> {
+function runRoute(points: maplibregl.LngLat[], alt = 0): Promise<RouteResult> {
   // "Evita autostrade" -> quiet-roads profile on BRouter (avoids superstrade too).
-  if (routeOptions.avoidHighways && quietProfileId) return routeThrough(points, quietProfileId);
-  return hasOrs() ? routeOrs(points, routeOptions) : routeThrough(points);
+  if (routeOptions.avoidHighways && quietProfileId) return routeThrough(points, quietProfileId, alt);
+  return hasOrs() ? routeOrs(points, routeOptions, alt) : routeThrough(points, 'car-fast', alt);
 }
 
 function formatDrivingTime(hours: number): string {
@@ -233,38 +241,59 @@ function showRoute(result: RouteResult): void {
   rsTime.textContent = formatDrivingTime(result.durationHours);
   routeSummary.hidden = false;
   exportRow.hidden = false;
+  regenRow.hidden = false;
   if (sheetCollapsed) setSheetCollapsed(true); // body grew: recompute offset + peek
 }
 
-async function recompute(): Promise<void> {
+function hideRouteUi(): void {
+  currentRoute = null;
+  clearRoute(map);
+  routeSummary.hidden = true;
+  exportRow.hidden = true;
+  regenRow.hidden = true;
+}
+
+async function recompute(alt = 0): Promise<void> {
   if (!waypoints.ready) {
-    currentRoute = null;
-    clearRoute(map);
-    routeSummary.hidden = true;
-    exportRow.hidden = true;
+    hideRouteUi();
     return;
   }
   const token = ++routeToken;
   errBox.hidden = true;
   try {
-    const route = await runRoute(waypoints.points);
+    const route = await runRoute(waypoints.points, alt);
     if (token !== routeToken) return;
     showRoute(route);
   } catch (e) {
     if (token !== routeToken) return;
-    currentRoute = null;
-    clearRoute(map);
-    routeSummary.hidden = true;
-    exportRow.hidden = true;
+    hideRouteUi();
     errBox.textContent = e instanceof Error ? e.message : 'Errore nel calcolo del percorso';
     errBox.hidden = false;
   }
 }
 
 waypoints.onChange = () => {
+  lastLoop = null; // a manual edit means it's no longer the generated loop
+  regenAlt = 0;
   renderSheet();
   void recompute();
 };
+
+async function doRegen(): Promise<void> {
+  if (lastLoop) {
+    // A generated loop: make a different one (fresh random direction, same start + distance).
+    await doGenerate('rand', lastLoop.start, lastLoop.targetKm);
+    return;
+  }
+  regenAlt += 1;
+  btnRegen.disabled = true;
+  const label = btnRegen.textContent;
+  btnRegen.textContent = 'Ricalcolo…';
+  await recompute(regenAlt);
+  btnRegen.disabled = false;
+  btnRegen.textContent = label;
+}
+btnRegen.addEventListener('click', () => void doRegen());
 
 // Map tap: manual = append a stop; anello = set the single start point.
 map.on('click', (e) => {
@@ -273,14 +302,18 @@ map.on('click', (e) => {
 });
 
 // --- Anello generation ---
-async function doGenerate(bearingDir: string): Promise<void> {
-  const start = waypoints.stops[0]?.lngLat;
+async function doGenerate(
+  bearingDir: string,
+  startOverride?: maplibregl.LngLat,
+  kmOverride?: number,
+): Promise<void> {
+  const start = startOverride ?? waypoints.stops[0]?.lngLat;
   if (!start) {
     anelloHint.textContent = 'Prima tocca la mappa per il punto di partenza.';
     return;
   }
   const bearing = bearingDir === 'rand' ? Math.random() * 360 : COMPASS[bearingDir];
-  const targetKm = Number(anelloDist.value);
+  const targetKm = kmOverride ?? Number(anelloDist.value);
   btnAnelloGen.disabled = true;
   btnAnelloSurprise.disabled = true;
   btnAnelloGen.textContent = 'Generando…';
@@ -290,6 +323,8 @@ async function doGenerate(bearingDir: string): Promise<void> {
     const loop = await generateLoop(start, targetKm, bearing, runRoute);
     if (token !== routeToken) return;
     waypoints.replaceAll(loop.points, { silent: true });
+    lastLoop = { start, targetKm }; // remember for "Rifai diverso"
+    regenAlt = 0;
     renderSheet();
     showRoute(loop.route);
     setSheetCollapsed(true); // reveal the loop on the map straight away
@@ -352,6 +387,8 @@ function loadRouteData(
   durationHours: number,
 ): void {
   setMode('manuale');
+  lastLoop = null; // a loaded/imported route isn't a regenerable loop
+  regenAlt = 0;
   waypoints.replaceAll(points, { silent: true });
   renderSheet();
   showRoute(makeRoute(geometry, distanceKm, durationHours));

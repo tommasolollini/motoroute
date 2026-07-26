@@ -200,6 +200,9 @@ html, body {
   border-radius: var(--radius-sm); padding: 10px 12px;
 }
 
+/* REGEN ROW */
+.regen-row .btn { width: 100%; }
+
 /* EXPORT ROW */
 .export-row { display: flex; gap: 8px; }
 .export-row .btn { flex: 1; padding: 12px 8px; font-size: 14px; }

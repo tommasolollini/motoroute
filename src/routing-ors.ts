@@ -26,7 +26,7 @@ export function hasOrs(): boolean {
   return Boolean(WORKER) || (typeof KEY === 'string' && KEY.length > 0);
 }
 
-export async function routeOrs(points: LngLat[], opts: RouteOptions): Promise<RouteResult> {
+export async function routeOrs(points: LngLat[], opts: RouteOptions, alt = 0): Promise<RouteResult> {
   if (!hasOrs()) throw new Error('Routing ORS non configurato');
   if (points.length < 2) throw new Error('Servono almeno due punti');
 
@@ -39,6 +39,10 @@ export async function routeOrs(points: LngLat[], opts: RouteOptions): Promise<Ro
     radiuses: points.map(() => -1),
   };
   if (opts.avoidHighways) body.options = { avoid_features: ['highways', 'tollways'] };
+  // Alternatives (ORS supports them only for a plain A->B request).
+  if (alt > 0 && points.length === 2) {
+    body.alternative_routes = { target_count: 4, share_factor: 0.5, weight_factor: 1.6 };
+  }
 
   // Production: call our Worker (no key in the client). Dev: call ORS directly.
   const endpoint = WORKER ? `${WORKER.replace(/\/$/, '')}/route` : ORS_DIRECT;
@@ -57,7 +61,8 @@ export async function routeOrs(points: LngLat[], opts: RouteOptions): Promise<Ro
   }
 
   const data = (await res.json()) as { features?: Feature<LineString>[] };
-  const feature = data.features?.[0];
+  const feats = data.features ?? [];
+  const feature = feats[alt % Math.max(feats.length, 1)] ?? feats[0];
   if (!feature || feature.geometry?.type !== 'LineString') {
     throw new Error('Nessun percorso trovato tra questi punti');
   }

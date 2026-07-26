@@ -13,10 +13,12 @@ const BROUTER_URL = 'https://brouter.de/brouter';
 export async function routeThrough(
   points: LngLat[],
   profile = 'car-fast',
+  alternativeidx = 0,
 ): Promise<RouteResult> {
   if (points.length < 2) throw new Error('Servono almeno due punti');
   const lonlats = points.map(fmt).join('|');
-  const url = `${BROUTER_URL}?lonlats=${lonlats}&profile=${profile}&alternativeidx=0&format=geojson`;
+  const idx = ((alternativeidx % 4) + 4) % 4; // BRouter supports 0..3
+  const url = `${BROUTER_URL}?lonlats=${lonlats}&profile=${profile}&alternativeidx=${idx}&format=geojson`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Il servizio di routing ha risposto ${res.status}`);
