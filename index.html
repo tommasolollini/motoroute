@@ -16,6 +16,7 @@
     <header class="topbar">
       <div class="logo">Moto<span>Route</span></div>
       <div class="topbar-actions">
+        <button class="icon-btn" id="btn-starts" title="Partenze salvate" aria-label="Partenze salvate">🏠</button>
         <button class="icon-btn" id="btn-import" title="Importa GPX" aria-label="Importa GPX">📥</button>
         <button class="icon-btn" id="btn-library" title="Percorsi salvati" aria-label="Percorsi salvati">★</button>
       </div>
@@ -88,6 +89,14 @@
       <button class="icon-btn" id="btn-lib-close" aria-label="Chiudi">✕</button>
     </div>
     <div class="lib-list" id="lib-list"></div>
+  </div>
+  <div class="overlay" id="starts" hidden>
+    <div class="overlay-head">
+      <span class="overlay-title">Partenze salvate</span>
+      <button class="icon-btn" id="btn-starts-close" aria-label="Chiudi">✕</button>
+    </div>
+    <button class="btn btn-amber" id="btn-start-add" style="margin-bottom:12px;">➕ Salva partenza attuale</button>
+    <div class="lib-list" id="starts-list"></div>
   </div>
   <div class="toast" id="toast"></div>
   <script type="module" src="/src/main.ts"></script>

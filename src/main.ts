@@ -10,6 +10,8 @@ import { buildGpx, downloadGpx, parseGpx } from './gpx';
 import { generateLoop } from './loop';
 import { COMPASS, lineDistanceKm } from './geo';
 import { getQuietProfileId } from './quiet-profile';
+import { cachedName, reverseGeocode, seedName } from './reverse';
+import { getStarts, addStart, deleteStart, renameStart } from './starts';
 import { saveRoute, allRoutes, deleteRoute, type SavedRoute } from './storage';
 import type { Feature, LineString } from 'geojson';
 
@@ -167,6 +169,24 @@ function stopClass(i: number, last: number): string {
   return 'via';
 }
 
+function stopText(s: { lngLat: maplibregl.LngLat }): string {
+  return cachedName(s.lngLat.lng, s.lngLat.lat) ?? `${s.lngLat.lat.toFixed(4)}, ${s.lngLat.lng.toFixed(4)}`;
+}
+
+let namingRun = 0;
+async function ensureStopNames(): Promise<void> {
+  const run = ++namingRun;
+  let changed = false;
+  for (const s of waypoints.stops) {
+    if (!cachedName(s.lngLat.lng, s.lngLat.lat)) {
+      const n = await reverseGeocode(s.lngLat.lng, s.lngLat.lat); // sequential = polite to Nominatim
+      if (run !== namingRun) return; // a newer edit superseded this pass
+      if (n) changed = true;
+    }
+  }
+  if (changed) renderStopList();
+}
+
 function renderStopList(): void {
   const last = waypoints.stops.length - 1;
   wpList.innerHTML = '';
@@ -177,15 +197,17 @@ function renderStopList(): void {
     const downDis = i === last ? 'disabled' : '';
     row.innerHTML =
       `<span class="wp-dot" data-role="${stopClass(i, last)}">${stopLabel(i, last)}</span>` +
-      `<span class="wp-text">${s.lngLat.lat.toFixed(4)}, ${s.lngLat.lng.toFixed(4)}</span>` +
+      `<span class="wp-text"></span>` +
       `<button class="wp-move" data-dir="up" title="Sposta su" ${upDis}>↑</button>` +
       `<button class="wp-move" data-dir="down" title="Sposta giù" ${downDis}>↓</button>` +
       `<button class="wp-del" title="Rimuovi tappa">×</button>`;
+    (row.querySelector('.wp-text') as HTMLElement).textContent = stopText(s);
     row.querySelector('[data-dir="up"]')?.addEventListener('click', () => waypoints.move(s.id, -1));
     row.querySelector('[data-dir="down"]')?.addEventListener('click', () => waypoints.move(s.id, 1));
     row.querySelector('.wp-del')?.addEventListener('click', () => waypoints.remove(s.id));
     wpList.appendChild(row);
   });
+  void ensureStopNames();
 }
 
 function renderSheet(): void {
@@ -429,6 +451,60 @@ async function openLibrary(): Promise<void> {
 }
 btnLibrary.addEventListener('click', () => void openLibrary());
 btnLibClose.addEventListener('click', () => { library.hidden = true; });
+
+// --- Saved start points ---
+const btnStarts = document.getElementById('btn-starts') as HTMLButtonElement;
+const startsOverlay = document.getElementById('starts') as HTMLDivElement;
+const startsList = document.getElementById('starts-list') as HTMLDivElement;
+const btnStartsClose = document.getElementById('btn-starts-close') as HTMLButtonElement;
+const btnStartAdd = document.getElementById('btn-start-add') as HTMLButtonElement;
+
+function useStart(lng: number, lat: number, name?: string): void {
+  if (name) seedName(lng, lat, name);
+  waypoints.replaceAll([{ lng, lat }]); // fresh start; onChange re-renders + clears route
+  map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 11) });
+  startsOverlay.hidden = true;
+}
+
+function renderStarts(): void {
+  const list = getStarts();
+  if (list.length === 0) {
+    startsList.innerHTML = '<p class="lib-empty">Nessuna partenza salvata.<br>Metti un punto di partenza e tocca “Salva partenza attuale”.</p>';
+    return;
+  }
+  startsList.innerHTML = '';
+  for (const st of list) {
+    const item = document.createElement('div');
+    item.className = 'lib-item';
+    item.innerHTML =
+      `<div class="lib-item-main"><div class="lib-item-name"></div>` +
+      `<div class="lib-item-meta">${st.lat.toFixed(4)}, ${st.lng.toFixed(4)}</div></div>` +
+      `<button class="lib-del" data-act="rename" title="Rinomina">✎</button>` +
+      `<button class="lib-del" data-act="del" title="Elimina">🗑</button>`;
+    (item.querySelector('.lib-item-name') as HTMLElement).textContent = st.name;
+    item.querySelector('.lib-item-main')?.addEventListener('click', () => useStart(st.lng, st.lat, st.name));
+    item.querySelector('[data-act="rename"]')?.addEventListener('click', () => {
+      const n = window.prompt('Nuovo nome:', st.name)?.trim();
+      if (n) { renameStart(st.id, n); seedName(st.lng, st.lat, n); renderStarts(); }
+    });
+    item.querySelector('[data-act="del"]')?.addEventListener('click', () => { deleteStart(st.id); renderStarts(); });
+    startsList.appendChild(item);
+  }
+}
+
+btnStarts.addEventListener('click', () => { renderStarts(); startsOverlay.hidden = false; });
+btnStartsClose.addEventListener('click', () => { startsOverlay.hidden = true; });
+btnStartAdd.addEventListener('click', () => {
+  const s = waypoints.stops[0];
+  if (!s) { toast('Prima metti un punto di partenza sulla mappa'); return; }
+  const suggested = cachedName(s.lngLat.lng, s.lngLat.lat) ?? 'Casa';
+  const name = window.prompt('Nome della partenza:', suggested)?.trim();
+  if (!name) return;
+  addStart(name, s.lngLat.lng, s.lngLat.lat);
+  seedName(s.lngLat.lng, s.lngLat.lat, name);
+  renderStarts();
+  toast('Partenza salvata 🏠');
+});
 
 // --- Shared controls ---
 btnGps.addEventListener('click', () => {
