@@ -21,6 +21,32 @@
     <div class="sheet" id="sheet">
       <div class="sheet-grip"></div>
       <div class="sheet-body" id="sheet-body">
+        <div class="mode-toggle" id="mode-toggle">
+          <button type="button" data-mode="manuale" class="active">✏️ Manuale</button>
+          <button type="button" data-mode="anello">🔁 Anello</button>
+        </div>
+        <div class="anello-controls" id="anello-controls" hidden>
+          <div class="anello-dist">
+            <span class="anello-dist-val" id="anello-dist-val">150 km</span>
+            <input type="range" id="anello-dist" min="30" max="400" step="10" value="150" aria-label="Distanza anello" />
+          </div>
+          <div class="compass" id="compass" role="group" aria-label="Direzione">
+            <button type="button" data-dir="NO">NO</button>
+            <button type="button" data-dir="N">N</button>
+            <button type="button" data-dir="NE">NE</button>
+            <button type="button" data-dir="O">O</button>
+            <button type="button" data-dir="rand" class="rand active">✦</button>
+            <button type="button" data-dir="E">E</button>
+            <button type="button" data-dir="SO">SO</button>
+            <button type="button" data-dir="S">S</button>
+            <button type="button" data-dir="SE">SE</button>
+          </div>
+          <div class="anello-actions">
+            <button class="btn btn-amber" id="btn-anello-gen">🔁 Genera anello</button>
+            <button class="btn btn-ghost" id="btn-anello-surprise">✦ Sorprendimi</button>
+          </div>
+          <p class="anello-hint" id="anello-hint">Tocca la mappa (o usa il GPS) per il punto di partenza.</p>
+        </div>
         <p class="hint" id="hint">Tocca la mappa per la partenza, poi la destinazione. Ogni tocco aggiunge una tappa; trascina i punti per correggere.</p>
         <div class="wp-list" id="wp-list" hidden></div>
         <div class="route-opts" id="route-opts" hidden>

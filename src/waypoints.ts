@@ -61,6 +61,19 @@ export class Waypoints {
     this.onChange('clear');
   }
 
+  /** Replace all stops at once (e.g. a generated loop). Silent by default so the
+   *  caller can draw an already-computed route without a redundant re-route. */
+  replaceAll(points: maplibregl.LngLatLike[], opts: { silent?: boolean } = {}): void {
+    for (const s of this.stops) s.marker.remove();
+    this.stops = points.map((p) => {
+      const point = maplibregl.LngLat.convert(p);
+      const id = ++this.seq;
+      return { id, lngLat: point, marker: this.makeMarker(id, point) };
+    });
+    this.relabel();
+    if (!opts.silent) this.onChange('reorder');
+  }
+
   get ready(): boolean {
     return this.stops.length >= 2;
   }

@@ -59,6 +59,25 @@ html, body {
 .sheet-body { min-height: 40px; display: flex; flex-direction: column; gap: 10px; }
 .hint { font-size: 14px; color: var(--text2); line-height: 1.5; text-align: center; padding: 6px 0 10px; }
 
+/* MODE TOGGLE */
+.mode-toggle { display: flex; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.mode-toggle button { flex: 1; padding: 10px 8px; background: transparent; border: none; color: var(--text2); font-size: 14px; font-weight: 600; cursor: pointer; }
+.mode-toggle button.active { background: var(--amber); color: #1a0d00; }
+
+/* ANELLO CONTROLS */
+.anello-controls { display: flex; flex-direction: column; gap: 12px; }
+.anello-dist-val { font-size: 24px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.anello-dist input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; background: var(--bg3); border-radius: 2px; outline: none; margin-top: 8px; }
+.anello-dist input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: var(--amber); cursor: pointer; }
+.compass { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.compass button { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-sm); padding: 12px 6px; font-size: 13px; font-weight: 600; color: var(--text2); cursor: pointer; letter-spacing: 0.04em; }
+.compass button.active { background: var(--amber); border-color: var(--amber); color: #1a0d00; }
+.compass button.rand { font-size: 17px; color: var(--amber); }
+.compass button.rand.active { color: #1a0d00; }
+.anello-actions { display: flex; gap: 8px; }
+.anello-actions .btn { flex: 1; }
+.anello-hint { font-size: 13px; color: var(--text2); text-align: center; }
+
 /* WAYPOINT MARKERS */
 .wp-marker {
   width: 26px; height: 26px; border-radius: 50%;

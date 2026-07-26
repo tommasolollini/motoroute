@@ -34,6 +34,9 @@ export async function routeOrs(points: LngLat[], opts: RouteOptions): Promise<Ro
     coordinates: points.map((p) => [p.lng, p.lat]),
     preference: opts.preference,
     instructions: false,
+    // Snap each point to the nearest road regardless of distance. Essential for
+    // the loop generator, whose waypoints are placed geometrically (off-road).
+    radiuses: points.map(() => -1),
   };
   if (opts.avoidHighways) body.options = { avoid_features: ['highways', 'tollways'] };
 
