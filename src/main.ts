@@ -61,17 +61,67 @@ const sheet = document.getElementById('sheet') as HTMLDivElement;
 const sheetGrip = document.getElementById('sheet-grip') as HTMLButtonElement;
 const gripPeek = document.getElementById('grip-peek') as HTMLSpanElement;
 
+let sheetCollapsed = false;
+
 function updatePeek(): void {
   gripPeek.innerHTML = currentRoute
-    ? `<b>${currentRoute.distanceKm.toFixed(0)} km</b> · ${formatDrivingTime(currentRoute.durationHours)} · tocca per aprire`
-    : 'Tocca per aprire il pannello';
+    ? `<b>${currentRoute.distanceKm.toFixed(0)} km</b> · ${formatDrivingTime(currentRoute.durationHours)} · scorri per aprire`
+    : 'Scorri su per aprire il pannello';
 }
 
-sheetGrip.addEventListener('click', () => {
-  const collapsed = sheet.classList.toggle('collapsed');
+function collapsedOffset(): number {
+  return Math.max(0, sheet.offsetHeight - sheetGrip.offsetHeight);
+}
+
+function setSheetCollapsed(collapsed: boolean): void {
+  sheetCollapsed = collapsed;
+  sheet.classList.toggle('collapsed', collapsed);
+  sheet.style.transform = collapsed ? `translateY(${collapsedOffset()}px)` : 'translateY(0)';
   sheetGrip.setAttribute('aria-expanded', String(!collapsed));
   if (collapsed) updatePeek();
+}
+
+// Drag-to-open/close (pointer events cover touch + mouse). Small drags = tap.
+let dragging = false;
+let dragStartY = 0;
+let dragBaseOffset = 0;
+let dragMax = 0;
+let dragMoved = 0;
+
+sheetGrip.addEventListener('pointerdown', (e) => {
+  dragging = true;
+  dragMoved = 0;
+  dragStartY = e.clientY;
+  dragMax = collapsedOffset();
+  dragBaseOffset = sheetCollapsed ? dragMax : 0;
+  sheet.style.transition = 'none';
+  sheetGrip.setPointerCapture(e.pointerId);
 });
+
+sheetGrip.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  const dy = e.clientY - dragStartY;
+  dragMoved = Math.max(dragMoved, Math.abs(dy));
+  const off = Math.min(Math.max(dragBaseOffset + dy, 0), dragMax);
+  sheet.style.transform = `translateY(${off}px)`;
+});
+
+function endDrag(e: PointerEvent): void {
+  if (!dragging) return;
+  dragging = false;
+  sheet.style.transition = '';
+  try { sheetGrip.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+  if (dragMoved < 6) {
+    setSheetCollapsed(!sheetCollapsed); // treat as a tap
+    return;
+  }
+  const dy = e.clientY - dragStartY;
+  const off = Math.min(Math.max(dragBaseOffset + dy, 0), dragMax);
+  setSheetCollapsed(off > dragMax * 0.35); // snap by how far it was dragged
+}
+
+sheetGrip.addEventListener('pointerup', endDrag);
+sheetGrip.addEventListener('pointercancel', endDrag);
 
 let toastTimer: number | undefined;
 function toast(msg: string): void {
@@ -155,7 +205,7 @@ function showRoute(result: RouteResult): void {
   rsTime.textContent = formatDrivingTime(result.durationHours);
   routeSummary.hidden = false;
   exportRow.hidden = false;
-  if (sheet.classList.contains('collapsed')) updatePeek();
+  if (sheetCollapsed) setSheetCollapsed(true); // body grew: recompute offset + peek
 }
 
 async function recompute(): Promise<void> {
