@@ -1,0 +1,10 @@
+name = "motoroute-proxy"
+main = "worker/src/index.ts"
+compatibility_date = "2024-11-01"
+
+# The ORS key is NOT stored here. Set it once as a secret:
+#   npx wrangler secret put ORS_API_KEY
+#
+# Optional: lock the proxy to your app's origin(s) after deploy:
+#   [vars]
+#   ALLOWED_ORIGINS = "https://motoroute.pages.dev"

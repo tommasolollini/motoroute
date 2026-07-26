@@ -1,0 +1,29 @@
+{
+  "name": "motoroute",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pianificatore di percorsi moto con mappa reale, routing curvy e IA tematica. PWA, gratis.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "worker:dev": "wrangler dev",
+    "worker:deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "maplibre-gl": "^4.7.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.8",
+    "wrangler": "^3.90.0"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "workerd@1.20250718.0": true,
+    "esbuild@0.17.19": true
+  }
+}
