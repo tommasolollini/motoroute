@@ -56,6 +56,23 @@ const libList = document.getElementById('lib-list') as HTMLDivElement;
 const btnLibClose = document.getElementById('btn-lib-close') as HTMLButtonElement;
 const toastEl = document.getElementById('toast') as HTMLDivElement;
 
+// Collapsible sheet
+const sheet = document.getElementById('sheet') as HTMLDivElement;
+const sheetGrip = document.getElementById('sheet-grip') as HTMLButtonElement;
+const gripPeek = document.getElementById('grip-peek') as HTMLSpanElement;
+
+function updatePeek(): void {
+  gripPeek.innerHTML = currentRoute
+    ? `<b>${currentRoute.distanceKm.toFixed(0)} km</b> · ${formatDrivingTime(currentRoute.durationHours)} · tocca per aprire`
+    : 'Tocca per aprire il pannello';
+}
+
+sheetGrip.addEventListener('click', () => {
+  const collapsed = sheet.classList.toggle('collapsed');
+  sheetGrip.setAttribute('aria-expanded', String(!collapsed));
+  if (collapsed) updatePeek();
+});
+
 let toastTimer: number | undefined;
 function toast(msg: string): void {
   toastEl.textContent = msg;
@@ -138,6 +155,7 @@ function showRoute(result: RouteResult): void {
   rsTime.textContent = formatDrivingTime(result.durationHours);
   routeSummary.hidden = false;
   exportRow.hidden = false;
+  if (sheet.classList.contains('collapsed')) updatePeek();
 }
 
 async function recompute(): Promise<void> {

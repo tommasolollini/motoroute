@@ -23,7 +23,10 @@
     <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden />
     <div id="map" aria-label="Mappa del percorso"></div>
     <div class="sheet" id="sheet">
-      <div class="sheet-grip"></div>
+      <button class="sheet-grip" id="sheet-grip" aria-label="Mostra o nascondi il pannello" aria-expanded="true">
+        <span class="grip-bar"></span>
+        <span class="grip-peek" id="grip-peek">Tocca per aprire il pannello</span>
+      </button>
       <div class="sheet-body" id="sheet-body">
         <div class="mode-toggle" id="mode-toggle">
           <button type="button" data-mode="manuale" class="active">✏️ Manuale</button>
