@@ -90,6 +90,9 @@ html, body {
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.4);
   transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
+  display: flex; flex-direction: column;
+  max-height: 82vh;
+  max-height: 82dvh; /* keeps the grip reachable on iOS even with tall content */
 }
 .sheet-grip {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -103,7 +106,12 @@ html, body {
 .grip-peek { font-size: 12px; color: var(--text2); display: none; font-variant-numeric: tabular-nums; }
 .sheet.collapsed .grip-peek { display: block; }
 .grip-peek b { color: var(--amber); font-weight: 600; }
-.sheet-body { min-height: 40px; display: flex; flex-direction: column; gap: 10px; }
+.sheet-body {
+  min-height: 0; display: flex; flex-direction: column; gap: 10px;
+  overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1 1 auto;
+  overscroll-behavior: contain;
+}
+.sheet-grip { flex: none; }
 .hint { font-size: 14px; color: var(--text2); line-height: 1.5; text-align: center; padding: 6px 0 10px; }
 
 /* MODE TOGGLE */

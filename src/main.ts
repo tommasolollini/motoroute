@@ -264,6 +264,7 @@ async function doGenerate(bearingDir: string): Promise<void> {
     waypoints.replaceAll(loop.points, { silent: true });
     renderSheet();
     showRoute(loop.route);
+    setSheetCollapsed(true); // reveal the loop on the map straight away
   } catch (e) {
     errBox.textContent = e instanceof Error ? e.message : 'Impossibile generare l’anello';
     errBox.hidden = false;
@@ -326,6 +327,7 @@ function loadRouteData(
   waypoints.replaceAll(points, { silent: true });
   renderSheet();
   showRoute(makeRoute(geometry, distanceKm, durationHours));
+  setSheetCollapsed(true); // show the loaded route on the map
 }
 
 // --- Save current route ---
