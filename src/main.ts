@@ -6,9 +6,11 @@ import { Waypoints } from './waypoints';
 import { routeThrough, type RouteResult } from './routing';
 import { routeOrs, hasOrs, type RouteOptions } from './routing-ors';
 import { drawRoute, clearRoute, fitToRoute } from './route-layer';
-import { buildGpx, downloadGpx } from './gpx';
+import { buildGpx, downloadGpx, parseGpx } from './gpx';
 import { generateLoop } from './loop';
-import { COMPASS } from './geo';
+import { COMPASS, lineDistanceKm } from './geo';
+import { saveRoute, allRoutes, deleteRoute, type SavedRoute } from './storage';
+import type { Feature, LineString } from 'geojson';
 
 const mapContainer = document.getElementById('map');
 if (!mapContainer) throw new Error('#map container not found');
@@ -42,6 +44,25 @@ const compass = document.getElementById('compass') as HTMLDivElement;
 const anelloHint = document.getElementById('anello-hint') as HTMLParagraphElement;
 const btnAnelloGen = document.getElementById('btn-anello-gen') as HTMLButtonElement;
 const btnAnelloSurprise = document.getElementById('btn-anello-surprise') as HTMLButtonElement;
+
+// Library / import / share
+const btnSave = document.getElementById('btn-save') as HTMLButtonElement;
+const btnShare = document.getElementById('btn-share') as HTMLButtonElement;
+const btnImport = document.getElementById('btn-import') as HTMLButtonElement;
+const gpxInput = document.getElementById('gpx-input') as HTMLInputElement;
+const btnLibrary = document.getElementById('btn-library') as HTMLButtonElement;
+const library = document.getElementById('library') as HTMLDivElement;
+const libList = document.getElementById('lib-list') as HTMLDivElement;
+const btnLibClose = document.getElementById('btn-lib-close') as HTMLButtonElement;
+const toastEl = document.getElementById('toast') as HTMLDivElement;
+
+let toastTimer: number | undefined;
+function toast(msg: string): void {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => toastEl.classList.remove('show'), 2500);
+}
 
 type Mode = 'manuale' | 'anello';
 let mode: Mode = 'manuale';
@@ -206,14 +227,132 @@ compass.querySelectorAll('button').forEach((btn) => {
 });
 
 // --- Mode toggle ---
+function setMode(m: Mode): void {
+  mode = m;
+  modeToggle.querySelectorAll('button').forEach((b) =>
+    b.classList.toggle('active', b.getAttribute('data-mode') === m),
+  );
+  renderSheet();
+}
 modeToggle.querySelectorAll('button').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    modeToggle.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    mode = (btn.dataset.mode as Mode) ?? 'manuale';
-    renderSheet();
-  });
+  btn.addEventListener('click', () => setMode((btn.dataset.mode as Mode) ?? 'manuale'));
 });
+
+// --- Load a route from stored/imported geometry (no re-routing) ---
+function makeRoute(geometry: number[][], distanceKm: number, durationHours: number): RouteResult {
+  const feature: Feature<LineString> = {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'LineString', coordinates: geometry },
+  };
+  return { feature, distanceKm, durationHours };
+}
+
+function loadRouteData(
+  points: { lng: number; lat: number }[],
+  geometry: number[][],
+  distanceKm: number,
+  durationHours: number,
+): void {
+  setMode('manuale');
+  waypoints.replaceAll(points, { silent: true });
+  renderSheet();
+  showRoute(makeRoute(geometry, distanceKm, durationHours));
+}
+
+// --- Save current route ---
+btnSave.addEventListener('click', async () => {
+  if (!currentRoute || !waypoints.ready) return;
+  const suggested = `Giro ${new Date().toLocaleDateString('it-IT')}`;
+  const name = window.prompt('Nome del percorso:', suggested)?.trim();
+  if (!name) return;
+  const route: SavedRoute = {
+    id: (crypto.randomUUID?.() ?? String(Date.now())),
+    name,
+    createdAt: Date.now(),
+    points: waypoints.points.map((p) => ({ lng: p.lng, lat: p.lat })),
+    distanceKm: currentRoute.distanceKm,
+    durationHours: currentRoute.durationHours,
+    geometry: currentRoute.feature.geometry.coordinates,
+  };
+  try {
+    await saveRoute(route);
+    toast('Percorso salvato ★');
+  } catch {
+    toast('Salvataggio non riuscito');
+  }
+});
+
+// --- Share ---
+btnShare.addEventListener('click', async () => {
+  if (!currentRoute || !waypoints.ready) return;
+  const pts = waypoints.points;
+  const o = pts[0];
+  const d = pts[pts.length - 1];
+  const via = pts.slice(1, -1).map((p) => `${p.lat},${p.lng}`).join('|');
+  let mapsUrl =
+    `https://www.google.com/maps/dir/?api=1&origin=${o.lat},${o.lng}&destination=${d.lat},${d.lng}&travelmode=driving`;
+  if (via) mapsUrl += `&waypoints=${encodeURIComponent(via)}`;
+  const text = `🏍️ MotoRoute · ${currentRoute.distanceKm.toFixed(0)} km\n${mapsUrl}`;
+  try {
+    if (navigator.share) await navigator.share({ title: 'MotoRoute', text });
+    else {
+      await navigator.clipboard.writeText(text);
+      toast('Percorso copiato negli appunti');
+    }
+  } catch {
+    /* user cancelled share */
+  }
+});
+
+// --- Import GPX ---
+btnImport.addEventListener('click', () => gpxInput.click());
+gpxInput.addEventListener('change', async () => {
+  const file = gpxInput.files?.[0];
+  gpxInput.value = '';
+  if (!file) return;
+  try {
+    const parsed = parseGpx(await file.text());
+    const km = lineDistanceKm(parsed.geometry);
+    loadRouteData(parsed.points, parsed.geometry, km, km / 55); // ~55 km/h stima
+    toast(`GPX importato · ${km.toFixed(0)} km`);
+  } catch (e) {
+    toast(e instanceof Error ? e.message : 'GPX non valido');
+  }
+});
+
+// --- Library ---
+async function openLibrary(): Promise<void> {
+  library.hidden = false;
+  libList.innerHTML = '<p class="lib-empty">Carico…</p>';
+  const routes = await allRoutes();
+  if (routes.length === 0) {
+    libList.innerHTML = '<p class="lib-empty">Nessun percorso salvato.<br>Genera un giro e tocca ★ Salva.</p>';
+    return;
+  }
+  libList.innerHTML = '';
+  for (const r of routes) {
+    const item = document.createElement('div');
+    item.className = 'lib-item';
+    const date = new Date(r.createdAt).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
+    item.innerHTML =
+      `<div class="lib-item-main"><div class="lib-item-name"></div>` +
+      `<div class="lib-item-meta">≈ ${r.distanceKm.toFixed(0)} km · ${date}</div></div>` +
+      `<button class="lib-del" title="Elimina">🗑</button>`;
+    (item.querySelector('.lib-item-name') as HTMLElement).textContent = r.name;
+    item.querySelector('.lib-item-main')?.addEventListener('click', () => {
+      loadRouteData(r.points, r.geometry, r.distanceKm, r.durationHours);
+      library.hidden = true;
+    });
+    item.querySelector('.lib-del')?.addEventListener('click', async () => {
+      await deleteRoute(r.id);
+      void openLibrary();
+    });
+    libList.appendChild(item);
+  }
+}
+btnLibrary.addEventListener('click', () => void openLibrary());
+btnLibClose.addEventListener('click', () => { library.hidden = true; });
 
 // --- Shared controls ---
 btnGps.addEventListener('click', () => {

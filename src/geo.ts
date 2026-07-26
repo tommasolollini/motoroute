@@ -32,3 +32,19 @@ export function destinationPoint(
 export const COMPASS: Record<string, number> = {
   N: 0, NE: 45, E: 90, SE: 135, S: 180, SO: 225, O: 270, NO: 315,
 };
+
+/** Total length (km) of a [lon,lat(,ele)] polyline, via haversine. */
+export function lineDistanceKm(coords: number[][]): number {
+  let km = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const [lon1, lat1] = coords[i - 1];
+    const [lon2, lat2] = coords[i];
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    km += R_EARTH_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  return km;
+}

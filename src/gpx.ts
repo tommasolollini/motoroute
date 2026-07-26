@@ -48,6 +48,40 @@ export function downloadGpx(filename: string, content: string): void {
   URL.revokeObjectURL(url);
 }
 
+export interface ParsedGpx {
+  points: { lng: number; lat: number }[];
+  geometry: number[][];
+}
+
+/** Parses a GPX file into a track polyline + start/end (or explicit waypoints). */
+export function parseGpx(xml: string): ParsedGpx {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (doc.querySelector('parsererror')) throw new Error('File GPX non valido');
+
+  const readPts = (sel: string): number[][] =>
+    Array.from(doc.querySelectorAll(sel)).map((pt) => {
+      const lon = Number(pt.getAttribute('lon'));
+      const lat = Number(pt.getAttribute('lat'));
+      const ele = pt.querySelector('ele')?.textContent;
+      return ele ? [lon, lat, Number(ele)] : [lon, lat];
+    });
+
+  let geometry = readPts('trkpt');
+  if (geometry.length === 0) geometry = readPts('rtept');
+  if (geometry.length < 2) throw new Error('Il GPX non contiene una traccia valida');
+
+  const wpts = readPts('wpt').map(([lng, lat]) => ({ lng, lat }));
+  const points =
+    wpts.length >= 2
+      ? wpts
+      : [
+          { lng: geometry[0][0], lat: geometry[0][1] },
+          { lng: geometry[geometry.length - 1][0], lat: geometry[geometry.length - 1][1] },
+        ];
+
+  return { points, geometry };
+}
+
 function escapeXml(s: string): string {
   return s.replace(/[<>&'"]/g, (c) =>
     ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c] as string,
