@@ -325,7 +325,9 @@ async function doGenerate(
     waypoints.replaceAll(loop.points, { silent: true });
     lastLoop = { start, targetKm }; // remember for "Rifai diverso"
     regenAlt = 0;
-    renderSheet();
+    // Switch to manual: the loop is now an editable route, so a tap ADDS a stop
+    // instead of resetting the start (which would wipe the loop). setMode renders.
+    setMode('manuale');
     showRoute(loop.route);
     setSheetCollapsed(true); // reveal the loop on the map straight away
   } catch (e) {
