@@ -33,6 +33,35 @@ export const COMPASS: Record<string, number> = {
   N: 0, NE: 45, E: 90, SE: 135, S: 180, SO: 225, O: 270, NO: 315,
 };
 
+function segKm(a: number[], b: number[]): number {
+  const dLat = toRad(b[1] - a[1]);
+  const dLon = toRad(b[0] - a[0]);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLon / 2) ** 2;
+  return R_EARTH_KM * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+/**
+ * Picks `count` intermediate points spaced evenly by distance along a
+ * [lon,lat(,ele)] polyline (endpoints excluded). Used to force Google Maps to
+ * follow the track: the more on-road via-points it gets, the closer it stays.
+ */
+export function sampleAlongTrack(coords: number[][], count: number): [number, number][] {
+  if (coords.length < 2 || count < 1) return [];
+  const cum = [0];
+  for (let i = 1; i < coords.length; i++) cum.push(cum[i - 1] + segKm(coords[i - 1], coords[i]));
+  const total = cum[cum.length - 1];
+  const out: [number, number][] = [];
+  for (let k = 1; k <= count; k++) {
+    const target = (k * total) / (count + 1);
+    let i = cum.findIndex((d) => d >= target);
+    if (i < 0) i = coords.length - 1;
+    out.push([coords[i][0], coords[i][1]]);
+  }
+  return out;
+}
+
 /** Total length (km) of a [lon,lat(,ele)] polyline, via haversine. */
 export function lineDistanceKm(coords: number[][]): number {
   let km = 0;

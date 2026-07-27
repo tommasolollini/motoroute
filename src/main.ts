@@ -8,7 +8,7 @@ import { routeOrs, hasOrs, type RouteOptions } from './routing-ors';
 import { drawRoute, clearRoute, fitToRoute } from './route-layer';
 import { buildGpx, downloadGpx, parseGpx } from './gpx';
 import { generateLoop } from './loop';
-import { COMPASS, lineDistanceKm } from './geo';
+import { COMPASS, lineDistanceKm, sampleAlongTrack } from './geo';
 import { getQuietProfileId } from './quiet-profile';
 import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart } from './starts';
@@ -30,6 +30,8 @@ const rsKm = document.getElementById('rs-km') as HTMLSpanElement;
 const rsTime = document.getElementById('rs-time') as HTMLSpanElement;
 const errBox = document.getElementById('err') as HTMLParagraphElement;
 const exportRow = document.getElementById('export-row') as HTMLDivElement;
+const navRow = document.getElementById('nav-row') as HTMLDivElement;
+const btnMaps = document.getElementById('btn-maps') as HTMLButtonElement;
 const regenRow = document.getElementById('regen-row') as HTMLDivElement;
 const btnRegen = document.getElementById('btn-regen') as HTMLButtonElement;
 const btnGpx = document.getElementById('btn-gpx') as HTMLButtonElement;
@@ -240,6 +242,7 @@ function showRoute(result: RouteResult): void {
   rsTime.textContent = formatDrivingTime(result.durationHours);
   routeSummary.hidden = false;
   exportRow.hidden = false;
+  navRow.hidden = false;
   regenRow.hidden = false;
   if (sheetCollapsed) setSheetCollapsed(true); // body grew: recompute offset + peek
 }
@@ -249,6 +252,7 @@ function hideRouteUi(): void {
   clearRoute(map);
   routeSummary.hidden = true;
   exportRow.hidden = true;
+  navRow.hidden = true;
   regenRow.hidden = true;
 }
 
@@ -602,6 +606,23 @@ btnNavigate.addEventListener('click', async () => {
   // Fallback (e.g. desktop): download so the user can open it in a nav app.
   downloadGpx(g.name.replace(/\s+/g, '-'), g.text);
   toast('GPX scaricato — aprilo in OsmAnd o simili');
+});
+
+// Open in Google Maps: sample up to 8 on-track via-points from the route
+// geometry so Maps follows the track closely, plus avoid=highways.
+btnMaps.addEventListener('click', () => {
+  if (!currentRoute) return;
+  const coords = currentRoute.feature.geometry.coordinates;
+  if (coords.length < 2) return;
+  const fmt = (c: number[]): string => `${c[1].toFixed(5)},${c[0].toFixed(5)}`; // lat,lng
+  const origin = fmt(coords[0]);
+  const destination = fmt(coords[coords.length - 1]);
+  const vias = sampleAlongTrack(coords, 8).map(fmt).join('|');
+  let url =
+    `https://www.google.com/maps/dir/?api=1&travelmode=driving&avoid=highways,tolls` +
+    `&origin=${origin}&destination=${destination}`;
+  if (vias) url += `&waypoints=${vias}`;
+  window.open(url, '_blank');
 });
 
 btnClear.addEventListener('click', () => waypoints.clear());
