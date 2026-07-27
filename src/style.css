@@ -81,6 +81,8 @@ html, body {
 #map { flex: 1; width: 100%; height: 100%; }
 .maplibregl-ctrl-group { background: var(--bg2) !important; border: 0.5px solid var(--border) !important; }
 .maplibregl-ctrl-group button + button { border-top: 0.5px solid var(--border) !important; }
+/* keep zoom/geolocate below the header action buttons */
+.maplibregl-ctrl-top-right { margin-top: calc(58px + env(safe-area-inset-top)); }
 
 /* BOTTOM SHEET */
 .sheet {

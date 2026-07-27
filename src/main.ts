@@ -38,7 +38,6 @@ const btnClear = document.getElementById('btn-clear') as HTMLButtonElement;
 const btnGps = document.getElementById('btn-gps') as HTMLButtonElement;
 const routeOpts = document.getElementById('route-opts') as HTMLDivElement;
 const optAvoidHw = document.getElementById('opt-avoid-hw') as HTMLInputElement;
-const optPref = document.getElementById('opt-pref') as HTMLDivElement;
 
 // Anello (loop) UI
 const modeToggle = document.getElementById('mode-toggle') as HTMLDivElement;
@@ -566,14 +565,6 @@ btnGps.addEventListener('click', () => {
 optAvoidHw.addEventListener('change', () => {
   routeOptions.avoidHighways = optAvoidHw.checked;
   void recompute();
-});
-optPref.querySelectorAll('button').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    optPref.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    routeOptions.preference = (btn.dataset.pref as RouteOptions['preference']) ?? 'recommended';
-    void recompute();
-  });
 });
 
 btnGpx.addEventListener('click', () => {
