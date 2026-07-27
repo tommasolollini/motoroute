@@ -33,7 +33,7 @@ const exportRow = document.getElementById('export-row') as HTMLDivElement;
 const regenRow = document.getElementById('regen-row') as HTMLDivElement;
 const btnRegen = document.getElementById('btn-regen') as HTMLButtonElement;
 const btnGpx = document.getElementById('btn-gpx') as HTMLButtonElement;
-const btnMaps = document.getElementById('btn-maps') as HTMLButtonElement;
+const btnNavigate = document.getElementById('btn-navigate') as HTMLButtonElement;
 const btnClear = document.getElementById('btn-clear') as HTMLButtonElement;
 const btnGps = document.getElementById('btn-gps') as HTMLButtonElement;
 const routeOpts = document.getElementById('route-opts') as HTMLDivElement;
@@ -421,20 +421,22 @@ btnSave.addEventListener('click', async () => {
 
 // --- Share ---
 btnShare.addEventListener('click', async () => {
-  if (!currentRoute || !waypoints.ready) return;
-  const pts = waypoints.points;
-  const o = pts[0];
-  const d = pts[pts.length - 1];
-  const via = pts.slice(1, -1).map((p) => `${p.lat},${p.lng}`).join('|');
-  let mapsUrl =
-    `https://www.google.com/maps/dir/?api=1&origin=${o.lat},${o.lng}&destination=${d.lat},${d.lng}&travelmode=driving`;
-  if (via) mapsUrl += `&waypoints=${encodeURIComponent(via)}`;
-  const text = `🏍️ MotoRoute · ${currentRoute.distanceKm.toFixed(0)} km\n${mapsUrl}`;
+  const g = currentGpx();
+  if (!g || !currentRoute) return;
+  const text = `🏍️ MotoRoute · ${currentRoute.distanceKm.toFixed(0)} km`;
+  const file = new File([g.text], `${g.name.replace(/\s+/g, '-')}.gpx`, {
+    type: 'application/gpx+xml',
+  });
   try {
-    if (navigator.share) await navigator.share({ title: 'MotoRoute', text });
-    else {
-      await navigator.clipboard.writeText(text);
-      toast('Percorso copiato negli appunti');
+    // Share the GPX file so the recipient gets the exact route (not a maps link
+    // that gets recalculated).
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: g.name, text });
+    } else if (navigator.share) {
+      await navigator.share({ title: g.name, text });
+    } else {
+      downloadGpx(g.name.replace(/\s+/g, '-'), g.text);
+      toast('GPX scaricato');
     }
   } catch {
     /* user cancelled share */
@@ -567,26 +569,39 @@ optAvoidHw.addEventListener('change', () => {
   void recompute();
 });
 
-btnGpx.addEventListener('click', () => {
-  if (!currentRoute || !waypoints.ready) return;
+function currentGpx(): { name: string; text: string } | null {
+  if (!currentRoute || !waypoints.ready) return null;
   const pts = waypoints.points;
   const name = `MotoRoute ${new Date().toLocaleDateString('it-IT')}`;
-  const gpx = buildGpx(currentRoute.feature, { name, start: pts[0], end: pts[pts.length - 1] });
-  downloadGpx(name.replace(/\s+/g, '-'), gpx);
+  const text = buildGpx(currentRoute.feature, { name, start: pts[0], end: pts[pts.length - 1] });
+  return { name, text };
+}
+
+btnGpx.addEventListener('click', () => {
+  const g = currentGpx();
+  if (g) downloadGpx(g.name.replace(/\s+/g, '-'), g.text);
 });
 
-btnMaps.addEventListener('click', () => {
-  if (!waypoints.ready) return;
-  const pts = waypoints.points;
-  const origin = pts[0];
-  const destination = pts[pts.length - 1];
-  const via = pts.slice(1, -1).map((p) => `${p.lat},${p.lng}`).join('|');
-  let url =
-    `https://www.google.com/maps/dir/?api=1` +
-    `&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}` +
-    `&travelmode=driving`;
-  if (via) url += `&waypoints=${encodeURIComponent(via)}`;
-  window.open(url, '_blank');
+// Navigate the EXACT route: share the GPX file so it opens in a turn-by-turn app
+// (OsmAnd, Guru Maps, Cartograph…). Google Maps can't follow a custom polyline.
+btnNavigate.addEventListener('click', async () => {
+  const g = currentGpx();
+  if (!g) return;
+  const file = new File([g.text], `${g.name.replace(/\s+/g, '-')}.gpx`, {
+    type: 'application/gpx+xml',
+  });
+  const shareData = { files: [file], title: g.name };
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share(shareData);
+    } catch {
+      /* user cancelled */
+    }
+    return;
+  }
+  // Fallback (e.g. desktop): download so the user can open it in a nav app.
+  downloadGpx(g.name.replace(/\s+/g, '-'), g.text);
+  toast('GPX scaricato — aprilo in OsmAnd o simili');
 });
 
 btnClear.addEventListener('click', () => waypoints.clear());
