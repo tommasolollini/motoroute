@@ -9,9 +9,13 @@
 export interface Env {
   /** Secret: `wrangler secret put ORS_API_KEY` */
   ORS_API_KEY: string;
+  /** Secret: `wrangler secret put GEMINI_API_KEY` */
+  GEMINI_API_KEY?: string;
   /** Optional comma-separated allowlist of app origins (e.g. the Pages URL). */
   ALLOWED_ORIGINS?: string;
 }
+
+const GEMINI_MODEL = 'gemini-flash-latest';
 
 const ORS_DIRECTIONS = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
 
@@ -60,6 +64,61 @@ export default {
       return new Response(payload, { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
 
+    // Natural-language ride request -> app parameters (Gemini, structured output).
+    if (req.method === 'POST' && url.pathname === '/ai/parse') {
+      if (!env.GEMINI_API_KEY) return json({ error: 'IA non configurata' }, 500, cors);
+      const { text } = (await req.json().catch(() => ({}))) as { text?: string };
+      if (!text || text.length > 400) return json({ error: 'Richiesta non valida' }, 400, cors);
+
+      const prompt =
+        `Sei l'assistente di un'app di percorsi in moto. Interpreta la richiesta dell'utente ` +
+        `e restituisci SOLO i parametri del giro.\n` +
+        `- mode: "anello" se vuole un giro circolare che torna al punto di partenza, altrimenti "punto_a_punto".\n` +
+        `- distance_km: intero tra 30 e 400 (se parla di ore, stima ~45 km/h).\n` +
+        `- direction: una fra N, NE, E, SE, S, SO, O, NO, oppure "qualsiasi".\n` +
+        `- avoid_highways: true salvo che chieda esplicitamente strade veloci.\n` +
+        `- themes: sottoinsieme di ["panoramico","borghi","montagna","mare","curve","enogastronomia","arte"].\n` +
+        `- summary: una frase breve in italiano che riassume cosa hai capito.\n\n` +
+        `Richiesta: "${text}"`;
+
+      const schema = {
+        type: 'OBJECT',
+        properties: {
+          mode: { type: 'STRING', enum: ['anello', 'punto_a_punto'] },
+          distance_km: { type: 'INTEGER' },
+          direction: { type: 'STRING', enum: ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO', 'qualsiasi'] },
+          avoid_highways: { type: 'BOOLEAN' },
+          themes: { type: 'ARRAY', items: { type: 'STRING' } },
+          summary: { type: 'STRING' },
+        },
+        required: ['mode', 'distance_km', 'direction', 'avoid_highways', 'summary'],
+      };
+
+      const gres = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.2 },
+          }),
+        },
+      );
+      if (!gres.ok) {
+        return json({ error: `IA non disponibile (${gres.status})` }, 502, cors);
+      }
+      const gdata = (await gres.json()) as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
+      };
+      const raw = gdata.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      try {
+        return json(JSON.parse(raw), 200, cors);
+      } catch {
+        return json({ error: 'Risposta IA non interpretabile' }, 502, cors);
+      }
+    }
+
     if (req.method === 'POST' && url.pathname === '/route') {
       if (!env.ORS_API_KEY) {
         return json({ error: 'Worker non configurato: manca ORS_API_KEY' }, 500, cors);
@@ -95,7 +154,7 @@ function corsHeaders(origin: string, env: Env): Record<string, string> {
   const allowed = allow.length === 0 || allow.includes(origin);
   return {
     'Access-Control-Allow-Origin': allowed && origin ? origin : allow[0] ?? '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',

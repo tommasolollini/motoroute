@@ -14,6 +14,7 @@ import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart } from './starts';
 import { fetchPois } from './overpass';
 import { PoiLayer } from './poi-layer';
+import { parseRideRequest, hasAi } from './ai';
 import { saveRoute, allRoutes, deleteRoute, type SavedRoute } from './storage';
 import type { Feature, LineString } from 'geojson';
 
@@ -589,6 +590,60 @@ map.on('moveend', () => {
   if (!poiOn) return;
   window.clearTimeout(poiTimer);
   poiTimer = window.setTimeout(() => void refreshPois(), 700);
+});
+
+// --- Natural-language bar ---
+const aiBar = document.getElementById('ai-bar') as HTMLFormElement;
+const aiInput = document.getElementById('ai-input') as HTMLInputElement;
+const aiGo = document.getElementById('ai-go') as HTMLButtonElement;
+const aiSummary = document.getElementById('ai-summary') as HTMLParagraphElement;
+
+if (!hasAi()) aiBar.hidden = true;
+
+aiBar.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = aiInput.value.trim();
+  if (!text) return;
+  aiGo.disabled = true;
+  aiGo.textContent = '⏳';
+  aiSummary.hidden = true;
+  errBox.hidden = true;
+  try {
+    const req = await parseRideRequest(text);
+    aiSummary.textContent = req.summary;
+    aiSummary.hidden = false;
+
+    // Apply the understood parameters to the UI.
+    optAvoidHw.checked = req.avoid_highways;
+    routeOptions.avoidHighways = req.avoid_highways;
+    const km = Math.min(400, Math.max(30, Math.round(req.distance_km)));
+    anelloDist.value = String(km);
+    anelloDistVal.textContent = `${km} km`;
+    const dir = req.direction === 'qualsiasi' ? 'rand' : req.direction;
+    anelloDir = dir;
+    compass.querySelectorAll('button').forEach((b) =>
+      b.classList.toggle('active', b.getAttribute('data-dir') === dir),
+    );
+
+    if (req.mode === 'anello') {
+      if (!waypoints.stops.length) {
+        setMode('anello');
+        anelloHint.textContent = 'Tocca la mappa (o usa il GPS) per la partenza, poi genera.';
+        toast('Scegli il punto di partenza');
+        return;
+      }
+      await doGenerate(dir, waypoints.stops[0].lngLat, km);
+    } else {
+      setMode('manuale');
+      toast('Tocca la mappa per partenza e destinazione');
+    }
+  } catch (err) {
+    errBox.textContent = err instanceof Error ? err.message : 'IA non disponibile';
+    errBox.hidden = false;
+  } finally {
+    aiGo.disabled = false;
+    aiGo.textContent = '✨';
+  }
 });
 
 btnStarts.addEventListener('click', () => { renderStarts(); startsOverlay.hidden = false; });
