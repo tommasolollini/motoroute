@@ -99,6 +99,23 @@ html, body {
 /* keep zoom/geolocate below the header action buttons */
 .maplibregl-ctrl-top-right { margin-top: calc(58px + env(safe-area-inset-top)); }
 
+/* POI TOGGLE + MARKERS */
+.poi-toggle {
+  position: absolute; z-index: 10; left: 12px; top: calc(58px + env(safe-area-inset-top));
+  width: 40px; height: 40px; border-radius: var(--radius-sm);
+  background: rgba(26, 26, 26, 0.85); backdrop-filter: blur(6px);
+  border: 0.5px solid var(--border); color: var(--text); font-size: 19px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.poi-toggle[aria-pressed="true"] { background: var(--amber); border-color: var(--amber); }
+.poi-marker {
+  width: 26px; height: 26px; border-radius: 50%; font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 15, 15, 0.82); border: 1px solid rgba(255, 255, 255, 0.28);
+}
+.maplibregl-popup-content { background: var(--bg2); color: var(--text); border: 0.5px solid var(--border); border-radius: 8px; font-size: 13px; padding: 6px 10px; }
+.maplibregl-popup-tip { border-top-color: var(--bg2) !important; border-bottom-color: var(--bg2) !important; }
+
 /* BOTTOM SHEET */
 .sheet {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 10;

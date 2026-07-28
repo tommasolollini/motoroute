@@ -12,6 +12,8 @@ import { COMPASS, lineDistanceKm, sampleAlongTrack } from './geo';
 import { getQuietProfileId } from './quiet-profile';
 import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart } from './starts';
+import { fetchPois } from './overpass';
+import { PoiLayer } from './poi-layer';
 import { saveRoute, allRoutes, deleteRoute, type SavedRoute } from './storage';
 import type { Feature, LineString } from 'geojson';
 
@@ -551,6 +553,43 @@ function renderStarts(): void {
     startsList.appendChild(item);
   }
 }
+
+// --- POI overlay (OpenStreetMap, keyless) ---
+const btnPoi = document.getElementById('poi-toggle') as HTMLButtonElement;
+const poiLayer = new PoiLayer(map);
+let poiOn = false;
+let poiTimer: number | undefined;
+
+async function refreshPois(): Promise<void> {
+  if (!poiOn) return;
+  if (map.getZoom() < 9) {
+    poiLayer.clear();
+    toast('Zooma di più per i punti di interesse');
+    return;
+  }
+  btnPoi.textContent = '⏳';
+  try {
+    const pois = await fetchPois(map.getBounds());
+    if (poiOn) poiLayer.set(pois);
+  } catch {
+    toast('POI non disponibili, riprova');
+  } finally {
+    btnPoi.textContent = '🌄';
+  }
+}
+
+btnPoi.addEventListener('click', () => {
+  poiOn = !poiOn;
+  btnPoi.setAttribute('aria-pressed', String(poiOn));
+  if (poiOn) void refreshPois();
+  else poiLayer.clear();
+});
+
+map.on('moveend', () => {
+  if (!poiOn) return;
+  window.clearTimeout(poiTimer);
+  poiTimer = window.setTimeout(() => void refreshPois(), 700);
+});
 
 btnStarts.addEventListener('click', () => { renderStarts(); startsOverlay.hidden = false; });
 btnStartsClose.addEventListener('click', () => { startsOverlay.hidden = true; });
