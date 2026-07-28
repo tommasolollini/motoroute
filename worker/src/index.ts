@@ -64,6 +64,62 @@ export default {
       return new Response(payload, { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
 
+    // Thematic curation: pick the nicest stops among REAL OSM candidates.
+    if (req.method === 'POST' && url.pathname === '/ai/curate') {
+      if (!env.GEMINI_API_KEY) return json({ error: 'IA non configurata' }, 500, cors);
+      const { themes, candidates, targetKm, startName } = (await req.json().catch(() => ({}))) as {
+        themes?: string[];
+        candidates?: { name: string; kind: string; distKm: number; dir: string }[];
+        targetKm?: number;
+        startName?: string;
+      };
+      if (!candidates?.length) return json({ error: 'Nessun candidato' }, 400, cors);
+
+      const list = candidates
+        .slice(0, 60)
+        .map((c) => `- ${c.name} (${c.kind}, ${c.distKm} km a ${c.dir})`)
+        .join('\n');
+      const prompt =
+        `Sei un esperto di itinerari in moto in Italia. Partenza: ${startName ?? 'punto scelto'}. ` +
+        `L'utente vuole un anello di circa ${targetKm ?? 150} km` +
+        `${themes?.length ? ` con questi interessi: ${themes.join(', ')}` : ''}.\n\n` +
+        `Scegli da 2 a 3 tappe da questo elenco di luoghi REALI, tali da formare un bell'anello ` +
+        `(ben distribuite, non tutte nella stessa direzione, coerenti con gli interessi).\n` +
+        `Usa ESATTAMENTE i nomi dell'elenco. Non inventare luoghi.\n\n${list}\n\n` +
+        `Restituisci le tappe scelte in ordine di percorrenza e una spiegazione ` +
+        `di 1-2 frasi in italiano sul perché questo giro è bello.`;
+
+      const gres = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
+                properties: {
+                  chosen: { type: 'ARRAY', items: { type: 'STRING' } },
+                  explanation: { type: 'STRING' },
+                },
+                required: ['chosen', 'explanation'],
+              },
+              temperature: 0.6,
+            },
+          }),
+        },
+      );
+      if (!gres.ok) return json({ error: `IA non disponibile (${gres.status})` }, 502, cors);
+      const gdata = (await gres.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      try {
+        return json(JSON.parse(gdata.candidates?.[0]?.content?.parts?.[0]?.text ?? ''), 200, cors);
+      } catch {
+        return json({ error: 'Risposta IA non interpretabile' }, 502, cors);
+      }
+    }
+
     // Forward geocoding (name -> coords) so AI-named places are validated as real.
     if (req.method === 'GET' && url.pathname === '/geocode') {
       const q = url.searchParams.get('q');

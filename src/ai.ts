@@ -14,6 +14,31 @@ export interface RideRequest {
   summary: string;
 }
 
+export interface Curation {
+  chosen: string[];
+  explanation: string;
+}
+
+/** Asks the AI to pick the nicest stops among REAL candidates (no invention). */
+export async function curateStops(input: {
+  themes: string[];
+  candidates: { name: string; kind: string; distKm: number; dir: string }[];
+  targetKm: number;
+  startName?: string;
+}): Promise<Curation> {
+  if (!WORKER) throw new Error('IA non configurata');
+  const res = await fetch(`${WORKER.replace(/\/$/, '')}/ai/curate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = (await res.json().catch(() => ({}))) as Partial<Curation> & { error?: string };
+  if (!res.ok || data.error || !data.chosen?.length) {
+    throw new Error(data.error ?? 'Nessuna tappa proposta');
+  }
+  return { chosen: data.chosen, explanation: data.explanation ?? '' };
+}
+
 export interface GeocodedPlace {
   name: string;
   lng: number;

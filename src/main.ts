@@ -14,7 +14,8 @@ import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart } from './starts';
 import { fetchPois } from './overpass';
 import { PoiLayer } from './poi-layer';
-import { parseRideRequest, hasAi, geocodePlace, type GeocodedPlace } from './ai';
+import { parseRideRequest, hasAi, geocodePlace, curateStops, type GeocodedPlace } from './ai';
+import { fetchCandidates } from './candidates';
 import { generateLoopVia } from './loop';
 import { saveRoute, allRoutes, deleteRoute, type SavedRoute } from './storage';
 import type { Feature, LineString } from 'geojson';
@@ -662,6 +663,43 @@ aiBar.addEventListener('submit', async (e) => {
         waypoints.replaceAll([start, ...vias]);
       }
       return;
+    }
+
+    // Thematic ride: let the AI curate REAL OSM candidates into the loop.
+    if (req.mode === 'anello' && (req.themes?.length ?? 0) > 0) {
+      try {
+        const bearing = dir === 'rand' ? undefined : COMPASS[dir];
+        const cands = await fetchCandidates(start, km / 3.1, req.themes ?? [], bearing);
+        if (cands.length >= 3) {
+          const startName = cachedName(start.lng, start.lat);
+          const cur = await curateStops({
+            themes: req.themes ?? [],
+            candidates: cands.map(({ name, kind, distKm, dir: d }) => ({ name, kind, distKm, dir: d })),
+            targetKm: km,
+            startName,
+          });
+          const picked = cur.chosen
+            .map((n) => cands.find((c) => c.name === n)) // only names that really exist
+            .filter((c): c is NonNullable<typeof c> => Boolean(c));
+          if (picked.length) {
+            for (const p of picked) seedName(p.lng, p.lat, p.name);
+            const vias = picked.map((p) => new maplibregl.LngLat(p.lng, p.lat));
+            const loop = await generateLoopVia(start, vias, km, runRoute);
+            waypoints.replaceAll(loop.points, { silent: true });
+            lastLoop = { start, targetKm: km };
+            regenAlt = 0;
+            setMode('manuale');
+            showRoute(loop.route);
+            if (cur.explanation) {
+              aiSummary.textContent = `${req.summary} — ${cur.explanation}`;
+            }
+            setSheetCollapsed(true);
+            return;
+          }
+        }
+      } catch (curErr) {
+        console.warn('[curate] fallback:', curErr);
+      }
     }
 
     if (req.mode === 'anello') {
