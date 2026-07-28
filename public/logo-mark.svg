@@ -1,0 +1,23 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MotoRoute">
+  <title>MotoRoute</title>
+  <!-- mountain ridge -->
+  <path d="M96 252 L232 100 L318 196 L352 158 L420 252"
+        fill="none" stroke="#f5f1e8" stroke-width="15"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- winding road: cream ribbon -->
+  <path d="M112 438
+           C 150 362, 300 352, 352 302
+           C 382 274, 358 258, 330 252
+           L 366 244
+           C 412 262, 424 302, 378 344
+           C 318 398, 196 404, 172 458 Z"
+        fill="#f5f1e8"/>
+  <!-- winding road: amber ribbon -->
+  <path d="M296 442
+           C 330 396, 388 376, 398 334
+           C 406 304, 384 292, 362 286
+           L 392 280
+           C 428 296, 438 336, 402 378
+           C 368 416, 344 424, 336 462 Z"
+        fill="#ef9f27"/>
+</svg>
