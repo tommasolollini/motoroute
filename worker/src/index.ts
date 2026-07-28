@@ -64,6 +64,56 @@ export default {
       return new Response(payload, { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
 
+    // Forward geocoding (name -> coords) so AI-named places are validated as real.
+    if (req.method === 'GET' && url.pathname === '/geocode') {
+      const q = url.searchParams.get('q');
+      if (!q) return json({ error: 'q mancante' }, 400, cors);
+      const near = url.searchParams.get('near'); // "lat,lon" for proximity bias
+
+      const key = new Request(`https://mr-cache/geocode?q=${encodeURIComponent(q.toLowerCase())}&near=${near ?? ''}`);
+      const cache = caches.default;
+      const cached = await cache.match(key);
+      if (cached) {
+        return new Response(cached.body, { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+
+      let nurl =
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=it` +
+        `&q=${encodeURIComponent(q)}`;
+      if (near) {
+        const [lat, lon] = near.split(',').map(Number);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          const d = 1.2; // ~130 km box around the start
+          nurl += `&viewbox=${lon - d},${lat + d},${lon + d},${lat - d}`;
+        }
+      }
+
+      let payload = JSON.stringify({ found: false });
+      try {
+        const nr = await fetch(nurl, {
+          headers: { 'User-Agent': 'MotoRoute/1.0 (https://motoroute-97c.pages.dev)' },
+        });
+        if (nr.ok) {
+          const arr = (await nr.json()) as { lat?: string; lon?: string; name?: string; display_name?: string }[];
+          const hit = arr[0];
+          if (hit?.lat && hit?.lon) {
+            payload = JSON.stringify({
+              found: true,
+              lat: Number(hit.lat),
+              lng: Number(hit.lon),
+              name: hit.name || (hit.display_name ?? q).split(',')[0],
+            });
+          }
+        }
+      } catch { /* keep found:false */ }
+
+      const toCache = new Response(payload, {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=2592000' },
+      });
+      ctx.waitUntil(cache.put(key, toCache.clone()));
+      return new Response(payload, { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+
     // Natural-language ride request -> app parameters (Gemini, structured output).
     if (req.method === 'POST' && url.pathname === '/ai/parse') {
       if (!env.GEMINI_API_KEY) return json({ error: 'IA non configurata' }, 500, cors);
@@ -78,6 +128,9 @@ export default {
         `- direction: una fra N, NE, E, SE, S, SO, O, NO, oppure "qualsiasi".\n` +
         `- avoid_highways: true salvo che chieda esplicitamente strade veloci.\n` +
         `- themes: sottoinsieme di ["panoramico","borghi","montagna","mare","curve","enogastronomia","arte"].\n` +
+        `- via_places: SOLO i nomi propri di località/passi che l'utente vuole ATTRAVERSARE ` +
+        `(es. "Gubbio"). Array vuoto se non ne cita. Non inventare luoghi.\n` +
+        `- destination: nome del luogo di arrivo se chiede un punto-a-punto, altrimenti "".\n` +
         `- summary: una frase breve in italiano che riassume cosa hai capito.\n\n` +
         `Richiesta: "${text}"`;
 
@@ -89,6 +142,8 @@ export default {
           direction: { type: 'STRING', enum: ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO', 'qualsiasi'] },
           avoid_highways: { type: 'BOOLEAN' },
           themes: { type: 'ARRAY', items: { type: 'STRING' } },
+          via_places: { type: 'ARRAY', items: { type: 'STRING' } },
+          destination: { type: 'STRING' },
           summary: { type: 'STRING' },
         },
         required: ['mode', 'distance_km', 'direction', 'avoid_highways', 'summary'],

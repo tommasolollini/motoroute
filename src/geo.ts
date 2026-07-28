@@ -33,6 +33,26 @@ export const COMPASS: Record<string, number> = {
   N: 0, NE: 45, E: 90, SE: 135, S: 180, SO: 225, O: 270, NO: 315,
 };
 
+/** Great-circle distance (km) between two points. */
+export function distanceKm(a: maplibregl.LngLat, b: maplibregl.LngLat): number {
+  return segKm([a.lng, a.lat], [b.lng, b.lat]);
+}
+
+/** Initial bearing (deg, 0=N) from a to b. */
+export function bearingBetween(a: maplibregl.LngLat, b: maplibregl.LngLat): number {
+  const φ1 = toRad(a.lat);
+  const φ2 = toRad(b.lat);
+  const Δλ = toRad(b.lng - a.lng);
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+/** Midpoint between two points (good enough at regional scale). */
+export function midpoint(a: maplibregl.LngLat, b: maplibregl.LngLat): maplibregl.LngLat {
+  return new maplibregl.LngLat((a.lng + b.lng) / 2, (a.lat + b.lat) / 2);
+}
+
 function segKm(a: number[], b: number[]): number {
   const dLat = toRad(b[1] - a[1]);
   const dLon = toRad(b[0] - a[0]);

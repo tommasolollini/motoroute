@@ -1,5 +1,5 @@
 import maplibregl from 'maplibre-gl';
-import { destinationPoint } from './geo';
+import { destinationPoint, bearingBetween, distanceKm, midpoint } from './geo';
 import type { RouteResult } from './routing';
 
 export type RouteFn = (points: maplibregl.LngLat[]) => Promise<RouteResult>;
@@ -38,6 +38,41 @@ export async function generateLoop(
   }
 
   if (!best) throw new Error('Impossibile generare un anello');
+  return best;
+}
+
+/**
+ * Loop that MUST pass through the given places. Goes start → vias → back, with a
+ * return arc on the far side so it's a real ring, not an out-and-back. The arc
+ * offset is scaled over a few tries to approach the target distance.
+ */
+export async function generateLoopVia(
+  start: maplibregl.LngLat,
+  vias: maplibregl.LngLat[],
+  targetKm: number,
+  route: RouteFn,
+): Promise<LoopResult> {
+  if (vias.length === 0) throw new Error('Nessuna tappa da attraversare');
+  const last = vias[vias.length - 1];
+  const legKm = Math.max(distanceKm(start, last), 1);
+  const side = 90; // arc on one side of the outbound leg
+  let offset = legKm * 0.45;
+  let best: LoopResult | null = null;
+
+  for (let i = 0; i < 3; i++) {
+    const arc = destinationPoint(midpoint(start, last), bearingBetween(start, last) + side, offset);
+    const points = [start, ...vias, arc, start];
+    const result = await route(points);
+    best = { points, route: result };
+
+    const err = Math.abs(result.distanceKm - targetKm) / targetKm;
+    if (err < 0.18 || result.distanceKm === 0) break;
+    // Only the arc can stretch the ring; the vias are fixed.
+    const extra = (targetKm - result.distanceKm) / 2;
+    offset = Math.max(legKm * 0.15, offset + extra * 0.6);
+  }
+
+  if (!best) throw new Error('Impossibile generare l’anello');
   return best;
 }
 

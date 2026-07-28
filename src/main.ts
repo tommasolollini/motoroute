@@ -14,7 +14,8 @@ import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart } from './starts';
 import { fetchPois } from './overpass';
 import { PoiLayer } from './poi-layer';
-import { parseRideRequest, hasAi } from './ai';
+import { parseRideRequest, hasAi, geocodePlace, type GeocodedPlace } from './ai';
+import { generateLoopVia } from './loop';
 import { saveRoute, allRoutes, deleteRoute, type SavedRoute } from './storage';
 import type { Feature, LineString } from 'geojson';
 
@@ -625,17 +626,49 @@ aiBar.addEventListener('submit', async (e) => {
       b.classList.toggle('active', b.getAttribute('data-dir') === dir),
     );
 
-    if (req.mode === 'anello') {
-      if (!waypoints.stops.length) {
-        setMode('anello');
-        anelloHint.textContent = 'Tocca la mappa (o usa il GPS) per la partenza, poi genera.';
-        toast('Scegli il punto di partenza');
-        return;
+    const start = waypoints.stops[0]?.lngLat;
+    if (!start) {
+      setMode(req.mode === 'anello' ? 'anello' : 'manuale');
+      toast('Scegli prima il punto di partenza');
+      return;
+    }
+
+    // Resolve the places the AI extracted into REAL coordinates (anti-hallucination:
+    // anything the geocoder can't find is dropped and reported).
+    const wanted = [...(req.via_places ?? [])];
+    if (req.mode === 'punto_a_punto' && req.destination) wanted.push(req.destination);
+    const found: GeocodedPlace[] = [];
+    const missing: string[] = [];
+    for (const q of wanted.slice(0, 5)) {
+      const g = await geocodePlace(q, { lng: start.lng, lat: start.lat });
+      if (g) found.push(g);
+      else missing.push(q);
+    }
+    if (missing.length) toast(`Non ho trovato: ${missing.join(', ')}`);
+
+    if (found.length) {
+      for (const g of found) seedName(g.lng, g.lat, g.name);
+      const vias = found.map((g) => new maplibregl.LngLat(g.lng, g.lat));
+      if (req.mode === 'anello') {
+        const loop = await generateLoopVia(start, vias, km, runRoute);
+        waypoints.replaceAll(loop.points, { silent: true });
+        lastLoop = { start, targetKm: km };
+        regenAlt = 0;
+        setMode('manuale');
+        showRoute(loop.route);
+        setSheetCollapsed(true);
+      } else {
+        setMode('manuale');
+        waypoints.replaceAll([start, ...vias]);
       }
-      await doGenerate(dir, waypoints.stops[0].lngLat, km);
+      return;
+    }
+
+    if (req.mode === 'anello') {
+      await doGenerate(dir, start, km);
     } else {
       setMode('manuale');
-      toast('Tocca la mappa per partenza e destinazione');
+      toast('Tocca la mappa per la destinazione');
     }
   } catch (err) {
     errBox.textContent = err instanceof Error ? err.message : 'IA non disponibile';

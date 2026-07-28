@@ -7,7 +7,35 @@ export interface RideRequest {
   direction: 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SO' | 'O' | 'NO' | 'qualsiasi';
   avoid_highways: boolean;
   themes?: string[];
+  /** Named places the ride must pass through (e.g. ["Gubbio"]). */
+  via_places?: string[];
+  /** Named destination for point-to-point requests. */
+  destination?: string;
   summary: string;
+}
+
+export interface GeocodedPlace {
+  name: string;
+  lng: number;
+  lat: number;
+}
+
+/** Resolves a place name to real coordinates (validated via the Worker). */
+export async function geocodePlace(
+  q: string,
+  near?: { lng: number; lat: number },
+): Promise<GeocodedPlace | null> {
+  if (!WORKER) return null;
+  let url = `${WORKER.replace(/\/$/, '')}/geocode?q=${encodeURIComponent(q)}`;
+  if (near) url += `&near=${near.lat},${near.lng}`;
+  try {
+    const r = await fetch(url);
+    const d = (await r.json()) as { found?: boolean; lat?: number; lng?: number; name?: string };
+    if (!d.found || d.lat == null || d.lng == null) return null;
+    return { name: d.name ?? q, lng: d.lng, lat: d.lat };
+  } catch {
+    return null;
+  }
 }
 
 export function hasAi(): boolean {
