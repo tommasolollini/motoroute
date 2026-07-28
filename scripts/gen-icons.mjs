@@ -3,21 +3,27 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import sharp from 'sharp';
 
-const BG = '#0f0f0f';
+let BG = '#0f0f0f';
 
 // Prefer the original logo file when present (public/logo-source.png): the app
 // icon uses only its upper part, i.e. the mark without the wordmark.
 const sourceUrl = new URL('../public/logo-source.png', import.meta.url);
 let markSvg;
 if (existsSync(sourceUrl)) {
-  const img = sharp(readFileSync(sourceUrl));
-  const { width = 0, height = 0 } = await img.metadata();
-  markSvg = await img
-    .extract({ left: 0, top: 0, width, height: Math.round(height * 0.72) })
-    .trim()
-    .png()
-    .toBuffer();
-  console.log('using public/logo-source.png (mark cropped from the original)');
+  const buf = readFileSync(sourceUrl);
+  const { width = 0, height = 0 } = await sharp(buf).metadata();
+  // Crop the mark (mountain + road), leaving out the wordmark underneath.
+  const region = {
+    left: Math.round(width * 0.17),
+    top: Math.round(height * 0.12),
+    width: Math.round(width * 0.66),
+    height: Math.round(height * 0.60),
+  };
+  markSvg = await sharp(buf).extract(region).png().toBuffer();
+  // Match the icon background to the logo's own black so no seam shows.
+  const [r, g, b] = await sharp(markSvg).extract({ left: 2, top: 2, width: 4, height: 4 }).raw().toBuffer();
+  BG = `rgb(${r},${g},${b})`;
+  console.log(`using public/logo-source.png (${width}x${height}, mark cropped, bg ${BG})`);
 } else {
   markSvg = readFileSync(new URL('../public/logo-mark.svg', import.meta.url));
   console.log('using public/logo-mark.svg (placeholder — drop logo-source.png to use the real logo)');
@@ -40,4 +46,15 @@ for (const [size, name] of SIZES) {
     .toBuffer();
   writeFileSync(new URL(`../public/${name}`, import.meta.url), png);
   console.log(`${name}: ${size}x${size}, ${png.length} bytes`);
+}
+
+// Lightweight full logo (with wordmark) for the splash screen.
+if (existsSync(sourceUrl)) {
+  const splash = await sharp(readFileSync(sourceUrl))
+    .trim({ threshold: 20 }) // drop the white margin around the logo
+    .resize(560, 560, { fit: 'inside' })
+    .png({ quality: 90, compressionLevel: 9 })
+    .toBuffer();
+  writeFileSync(new URL('../public/logo.png', import.meta.url), splash);
+  console.log(`logo.png: 560px, ${splash.length} bytes`);
 }
