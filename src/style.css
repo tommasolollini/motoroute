@@ -29,6 +29,21 @@ html, body {
 
 #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
 
+/* SPLASH */
+#splash {
+  position: fixed; inset: 0; z-index: 200; background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.5s ease;
+}
+#splash.hide { opacity: 0; pointer-events: none; }
+.splash-inner { text-align: center; padding: 2rem; animation: splashIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.splash-badge { font-size: clamp(40px, 13vw, 64px); margin-bottom: 0.4rem; }
+.splash-logo { font-size: clamp(40px, 13vw, 68px); font-weight: 800; letter-spacing: -0.03em; color: var(--text); line-height: 1; }
+.splash-logo span { color: var(--amber); }
+.splash-tagline { margin-top: 14px; font-size: clamp(13px, 4vw, 17px); color: var(--text2); letter-spacing: 0.02em; }
+@keyframes splashIn { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .splash-inner { animation: none; } }
+
 /* TOP BAR */
 .topbar {
   position: absolute; top: 0; left: 0; right: 0; z-index: 10;

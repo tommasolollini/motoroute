@@ -21,6 +21,14 @@ if (!mapContainer) throw new Error('#map container not found');
 const map = createMap(mapContainer);
 const waypoints = new Waypoints(map);
 
+// Intro splash: fades out after a moment (or on tap).
+const splash = document.getElementById('splash');
+if (splash) {
+  const dismiss = (): void => splash.classList.add('hide');
+  const timer = window.setTimeout(dismiss, 1900);
+  splash.addEventListener('click', () => { window.clearTimeout(timer); dismiss(); });
+}
+
 // UI references
 const hint = document.getElementById('hint') as HTMLParagraphElement;
 const wpList = document.getElementById('wp-list') as HTMLDivElement;
@@ -154,9 +162,17 @@ void getQuietProfileId().then((id) => {
   if (routeOptions.avoidHighways && waypoints.ready) void recompute();
 });
 
-function runRoute(points: maplibregl.LngLat[], alt = 0): Promise<RouteResult> {
+async function runRoute(points: maplibregl.LngLat[], alt = 0): Promise<RouteResult> {
   // "Evita autostrade" -> quiet-roads profile on BRouter (avoids superstrade too).
-  if (routeOptions.avoidHighways && quietProfileId) return routeThrough(points, quietProfileId, alt);
+  // BRouter can 400 on some geometrically-placed loop points; fall back to ORS,
+  // which snaps any point to the nearest road (radiuses=-1) and never fails there.
+  if (routeOptions.avoidHighways && quietProfileId) {
+    try {
+      return await routeThrough(points, quietProfileId, alt);
+    } catch {
+      /* fall back to ORS below */
+    }
+  }
   return hasOrs() ? routeOrs(points, routeOptions, alt) : routeThrough(points, 'car-fast', alt);
 }
 
