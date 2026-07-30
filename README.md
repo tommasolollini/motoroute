@@ -148,7 +148,22 @@ npm run build
 npm test
 ```
 
-Il deploy completo (Worker + Pages, tutto sul tier gratuito) è documentato in **[DEPLOY.md](DEPLOY.md)**.
+### Pubblicare online
+
+Il sito di produzione è **https://motoroute-97c.pages.dev** (Cloudflare Pages, *direct upload*).
+Non è collegato a GitHub: **un `git push` non pubblica il sito**. Per andare online:
+
+```bash
+npm run deploy
+```
+
+Il Worker (proxy delle chiavi) si aggiorna a parte:
+
+```bash
+npm run worker:deploy
+```
+
+Il setup completo (Worker + Pages, tutto sul tier gratuito) è documentato in **[DEPLOY.md](DEPLOY.md)**.
 
 ---
 
