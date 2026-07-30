@@ -37,8 +37,7 @@ html, body {
 }
 #splash.hide { opacity: 0; pointer-events: none; }
 .splash-inner { text-align: center; padding: 2rem; animation: splashIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
-/* radius clips the white corners left outside the logo's rounded square */
-.splash-mark { width: clamp(210px, 62vw, 300px); height: auto; display: block; margin: 0 auto; border-radius: 19%; }
+.splash-mark { width: clamp(200px, 58vw, 280px); height: auto; display: block; margin: 0 auto; }
 .splash-tagline { margin-top: 18px; font-size: clamp(13px, 4vw, 17px); color: var(--text2); letter-spacing: 0.02em; }
 .splash-tagline span { color: var(--amber); font-weight: 600; }
 @keyframes splashIn { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
