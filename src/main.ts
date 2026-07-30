@@ -163,6 +163,7 @@ let routeToken = 0;
 const routeOptions: RouteOptions = { avoidHighways: true, preference: 'recommended' };
 let lastLoop: { start: maplibregl.LngLat; targetKm: number } | null = null;
 let regenAlt = 0;
+let lastMovedId: number | null = null; // for the reorder highlight
 
 let quietProfileId: string | null = null;
 void getQuietProfileId().then((id) => {
@@ -236,9 +237,14 @@ function renderStopList(): void {
       `<button class="wp-move" data-dir="down" title="Sposta giù" ${downDis}>↓</button>` +
       `<button class="wp-del" title="Rimuovi tappa">×</button>`;
     (row.querySelector('.wp-text') as HTMLElement).textContent = stopText(s);
-    row.querySelector('[data-dir="up"]')?.addEventListener('click', () => waypoints.move(s.id, -1));
-    row.querySelector('[data-dir="down"]')?.addEventListener('click', () => waypoints.move(s.id, 1));
+    const move = (dir: -1 | 1): void => { lastMovedId = s.id; waypoints.move(s.id, dir); };
+    row.querySelector('[data-dir="up"]')?.addEventListener('click', () => move(-1));
+    row.querySelector('[data-dir="down"]')?.addEventListener('click', () => move(1));
     row.querySelector('.wp-del')?.addEventListener('click', () => waypoints.remove(s.id));
+    if (s.id === lastMovedId) {
+      row.classList.add('wp-moved');
+      requestAnimationFrame(() => row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    }
     wpList.appendChild(row);
   });
   void ensureStopNames();
@@ -876,7 +882,12 @@ btnMaps.addEventListener('click', () => {
   window.open(url, '_blank');
 });
 
-btnClear.addEventListener('click', () => waypoints.clear());
+btnClear.addEventListener('click', () => {
+  waypoints.clear();
+  aiInput.value = '';
+  aiSummary.textContent = '';
+  aiSummary.hidden = true;
+});
 
 map.on('load', () => {
   const meta = document.getElementById('topbar-meta');
