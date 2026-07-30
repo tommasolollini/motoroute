@@ -53,6 +53,13 @@ export async function generateLoopVia(
   route: RouteFn,
 ): Promise<LoopResult> {
   if (vias.length === 0) throw new Error('Nessuna tappa da attraversare');
+
+  // With 3+ spread stops the ring is already formed by the stops themselves.
+  if (vias.length >= 3) {
+    const points = [start, ...vias, start];
+    return { points, route: await route(points) };
+  }
+
   const last = vias[vias.length - 1];
   const legKm = Math.max(distanceKm(start, last), 1);
   const side = 90; // arc on one side of the outbound leg

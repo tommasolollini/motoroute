@@ -9,9 +9,13 @@ export interface RideRequest {
   themes?: string[];
   /** Named places the ride must pass through (e.g. ["Gubbio"]). */
   via_places?: string[];
+  /** AI-suggested iconic stops that capture the spirit of the request. */
+  suggested_stops?: string[];
   /** Named destination for point-to-point requests. */
   destination?: string;
   summary: string;
+  /** Richer 2-3 sentence description with a practical tip. */
+  description?: string;
 }
 
 export interface Curation {

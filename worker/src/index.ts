@@ -184,10 +184,18 @@ export default {
         `- direction: una fra N, NE, E, SE, S, SO, O, NO, oppure "qualsiasi".\n` +
         `- avoid_highways: true salvo che chieda esplicitamente strade veloci.\n` +
         `- themes: sottoinsieme di ["panoramico","borghi","montagna","mare","curve","enogastronomia","arte"].\n` +
-        `- via_places: SOLO i nomi propri di località/passi che l'utente vuole ATTRAVERSARE ` +
-        `(es. "Gubbio"). Array vuoto se non ne cita. Non inventare luoghi.\n` +
+        `- via_places: SOLO i nomi propri di località/passi che l'utente cita ESPLICITAMENTE di ` +
+        `voler attraversare (es. "Castelluccio di Norcia"). Array vuoto se non ne cita.\n` +
+        `- suggested_stops: se la richiesta evoca una ZONA o un itinerario tematico ` +
+        `(es. "giro della Val d'Orcia", "un giro nel Chianti", "le strade dei Sibillini"), ` +
+        `elenca da 2 a 4 nomi REALI e verificabili di località/valichi/luoghi iconici di quella ` +
+        `zona che catturano lo spirito della richiesta e formano un bell'anello. ` +
+        `Usa nomi di posti realmente esistenti in Italia, non inventarli. Array vuoto se la ` +
+        `richiesta è generica (solo distanza/direzione/temi).\n` +
         `- destination: nome del luogo di arrivo se chiede un punto-a-punto, altrimenti "".\n` +
-        `- summary: una frase breve in italiano che riassume cosa hai capito.\n\n` +
+        `- summary: una frase breve che riassume cosa hai capito.\n` +
+        `- description: 2-3 frasi che descrivono il giro con un consiglio pratico ` +
+        `(cosa vedere, una sosta consigliata, una dritta di guida).\n\n` +
         `Richiesta: "${text}"`;
 
       const schema = {
@@ -199,8 +207,10 @@ export default {
           avoid_highways: { type: 'BOOLEAN' },
           themes: { type: 'ARRAY', items: { type: 'STRING' } },
           via_places: { type: 'ARRAY', items: { type: 'STRING' } },
+          suggested_stops: { type: 'ARRAY', items: { type: 'STRING' } },
           destination: { type: 'STRING' },
           summary: { type: 'STRING' },
+          description: { type: 'STRING' },
         },
         required: ['mode', 'distance_km', 'direction', 'avoid_highways', 'summary'],
       };

@@ -8,10 +8,10 @@ import { routeOrs, hasOrs, type RouteOptions } from './routing-ors';
 import { drawRoute, clearRoute, fitToRoute } from './route-layer';
 import { buildGpx, downloadGpx, parseGpx } from './gpx';
 import { generateLoop } from './loop';
-import { COMPASS, lineDistanceKm, sampleAlongTrack } from './geo';
+import { COMPASS, lineDistanceKm, sampleAlongTrack, bearingBetween } from './geo';
 import { getQuietProfileId } from './quiet-profile';
 import { cachedName, reverseGeocode, seedName } from './reverse';
-import { getStarts, addStart, deleteStart, renameStart } from './starts';
+import { getStarts, addStart, deleteStart, renameStart, getFavoriteStartId, setFavoriteStart, getFavoriteStart } from './starts';
 import { fetchPois } from './overpass';
 import { PoiLayer } from './poi-layer';
 import { parseRideRequest, hasAi, geocodePlace, curateStops, type GeocodedPlace } from './ai';
@@ -48,8 +48,8 @@ const navRow = document.getElementById('nav-row') as HTMLDivElement;
 const btnMaps = document.getElementById('btn-maps') as HTMLButtonElement;
 const regenRow = document.getElementById('regen-row') as HTMLDivElement;
 const btnRegen = document.getElementById('btn-regen') as HTMLButtonElement;
-const btnMeteo = document.getElementById('btn-meteo') as HTMLButtonElement;
 const weatherLine = document.getElementById('weather-line') as HTMLParagraphElement;
+const fabRegen = document.getElementById('fab-regen') as HTMLButtonElement;
 const btnGpx = document.getElementById('btn-gpx') as HTMLButtonElement;
 const btnNavigate = document.getElementById('btn-navigate') as HTMLButtonElement;
 const btnClear = document.getElementById('btn-clear') as HTMLButtonElement;
@@ -101,6 +101,7 @@ function setSheetCollapsed(collapsed: boolean): void {
   sheet.style.transform = collapsed ? `translateY(${collapsedOffset()}px)` : 'translateY(0)';
   sheetGrip.setAttribute('aria-expanded', String(!collapsed));
   if (collapsed) updatePeek();
+  updateFab();
 }
 
 // Drag-to-open/close (pointer events cover touch + mouse). Small drags = tap.
@@ -268,8 +269,14 @@ function showRoute(result: RouteResult): void {
   exportRow.hidden = false;
   navRow.hidden = false;
   regenRow.hidden = false;
-  weatherLine.hidden = true; // stale for the new route until requested again
+  scheduleWeather(); // auto-show weather for this route
+  updateFab();
   if (sheetCollapsed) setSheetCollapsed(true); // body grew: recompute offset + peek
+}
+
+/** The floating "regenerate" is shown only when a route exists and the sheet is closed. */
+function updateFab(): void {
+  fabRegen.hidden = !(currentRoute && sheetCollapsed);
 }
 
 function hideRouteUi(): void {
@@ -280,6 +287,7 @@ function hideRouteUi(): void {
   navRow.hidden = true;
   regenRow.hidden = true;
   weatherLine.hidden = true;
+  fabRegen.hidden = true;
 }
 
 async function recompute(alt = 0): Promise<void> {
@@ -324,24 +332,32 @@ async function doRegen(): Promise<void> {
 }
 btnRegen.addEventListener('click', () => void doRegen());
 
-btnMeteo.addEventListener('click', async () => {
+// Weather is shown automatically for the current route (debounced so drag-edits
+// don't spam Open-Meteo).
+let weatherTimer: number | undefined;
+let weatherToken = 0;
+function scheduleWeather(): void {
+  window.clearTimeout(weatherTimer);
+  weatherTimer = window.setTimeout(() => void loadWeather(), 500);
+}
+async function loadWeather(): Promise<void> {
   if (!currentRoute) return;
-  btnMeteo.disabled = true;
-  btnMeteo.textContent = '⏳ Meteo';
+  const token = ++weatherToken;
+  weatherLine.textContent = '🌤 Meteo…';
+  weatherLine.hidden = false;
   try {
     const w = await rideWeather(currentRoute.feature.geometry.coordinates);
+    if (token !== weatherToken) return;
     const parts = w.points.map((p) => `<b>${p.label}</b> ${p.emoji} ${p.temp}°`).join(' · ');
     weatherLine.innerHTML = parts + (w.rain ? '<span class="weather-rain">🌧️ possibile pioggia sul percorso</span>' : '');
     weatherLine.classList.toggle('rain', w.rain);
-    weatherLine.hidden = false;
     if (sheetCollapsed) setSheetCollapsed(true);
   } catch {
-    toast('Meteo non disponibile');
-  } finally {
-    btnMeteo.disabled = false;
-    btnMeteo.textContent = '🌤 Meteo';
+    if (token === weatherToken) weatherLine.hidden = true;
   }
-});
+}
+
+fabRegen.addEventListener('click', () => void doRegen());
 
 // Map tap: manual = append a stop; anello = set the single start point.
 map.on('click', (e) => {
@@ -562,16 +578,24 @@ function renderStarts(): void {
     return;
   }
   startsList.innerHTML = '';
+  const favId = getFavoriteStartId();
   for (const st of list) {
+    const isFav = st.id === favId;
     const item = document.createElement('div');
     item.className = 'lib-item';
     item.innerHTML =
       `<div class="lib-item-main"><div class="lib-item-name"></div>` +
-      `<div class="lib-item-meta">${st.lat.toFixed(4)}, ${st.lng.toFixed(4)}</div></div>` +
+      `<div class="lib-item-meta">${isFav ? 'Predefinita · ' : ''}${st.lat.toFixed(4)}, ${st.lng.toFixed(4)}</div></div>` +
+      `<button class="lib-del" data-act="fav" title="Imposta come predefinita">${isFav ? '⭐' : '☆'}</button>` +
       `<button class="lib-del" data-act="rename" title="Rinomina">✎</button>` +
       `<button class="lib-del" data-act="del" title="Elimina">🗑</button>`;
     (item.querySelector('.lib-item-name') as HTMLElement).textContent = st.name;
     item.querySelector('.lib-item-main')?.addEventListener('click', () => useStart(st.lng, st.lat, st.name));
+    item.querySelector('[data-act="fav"]')?.addEventListener('click', () => {
+      setFavoriteStart(isFav ? null : st.id);
+      renderStarts();
+      toast(isFav ? 'Partenza predefinita rimossa' : 'Impostata come predefinita ⭐');
+    });
     item.querySelector('[data-act="rename"]')?.addEventListener('click', () => {
       const n = window.prompt('Nuovo nome:', st.name)?.trim();
       if (n) { renameStart(st.id, n); seedName(st.lng, st.lat, n); renderStarts(); }
@@ -631,7 +655,7 @@ aiBar.addEventListener('submit', async (e) => {
   const text = aiInput.value.trim();
   if (!text) return;
   aiGo.disabled = true;
-  aiGo.textContent = '⏳';
+  aiGo.classList.add('loading');
   aiSummary.hidden = true;
   errBox.hidden = true;
   try {
@@ -651,45 +675,68 @@ aiBar.addEventListener('submit', async (e) => {
       b.classList.toggle('active', b.getAttribute('data-dir') === dir),
     );
 
-    const start = waypoints.stops[0]?.lngLat;
+    let start = waypoints.stops[0]?.lngLat ?? null;
+
+    // Places the AI named: explicit passages + its thematic itinerary. We geocode
+    // them (anti-hallucination: anything not found on the map is dropped).
+    const placeNames = [...(req.via_places ?? []), ...(req.suggested_stops ?? [])];
+    if (req.mode === 'punto_a_punto' && req.destination) placeNames.push(req.destination);
+    const uniqueNames = [...new Map(placeNames.map((n) => [n.trim().toLowerCase(), n.trim()])).values()]
+      .filter(Boolean)
+      .slice(0, 6);
+
+    if (uniqueNames.length) {
+      aiSummary.textContent = `${req.summary} — cerco i luoghi…`;
+      const bias = start ? { lng: start.lng, lat: start.lat } : undefined;
+      const found: GeocodedPlace[] = [];
+      const missing: string[] = [];
+      for (const q of uniqueNames) {
+        const g = await geocodePlace(q, bias);
+        if (g) found.push(g);
+        else missing.push(q);
+      }
+      if (missing.length) toast(`Non trovati: ${missing.join(', ')}`);
+
+      if (found.length) {
+        for (const g of found) seedName(g.lng, g.lat, g.name);
+        // No start set? Centre the ride on the area (use the first place).
+        if (!start) {
+          const s0 = found.shift() as GeocodedPlace;
+          start = new maplibregl.LngLat(s0.lng, s0.lat);
+          map.flyTo({ center: [start.lng, start.lat], zoom: 10 });
+        }
+        if (req.mode === 'punto_a_punto' && found.length) {
+          setMode('manuale');
+          waypoints.replaceAll([start, ...found.map((g) => new maplibregl.LngLat(g.lng, g.lat))]);
+        } else {
+          const here = start;
+          const vias = found
+            .map((g) => new maplibregl.LngLat(g.lng, g.lat))
+            .sort((a, b) => bearingBetween(here, a) - bearingBetween(here, b));
+          const loop = vias.length
+            ? await generateLoopVia(here, vias, km, runRoute)
+            : { points: [here], route: null };
+          if (loop.route) {
+            waypoints.replaceAll(loop.points, { silent: true });
+            lastLoop = { start: here, targetKm: km };
+            regenAlt = 0;
+            setMode('manuale');
+            showRoute(loop.route);
+          }
+        }
+        aiSummary.textContent = req.description || req.summary;
+        setSheetCollapsed(true);
+        return;
+      }
+    }
+
     if (!start) {
       setMode(req.mode === 'anello' ? 'anello' : 'manuale');
-      toast('Scegli prima il punto di partenza');
+      toast('Scegli prima il punto di partenza (o nomina un luogo)');
       return;
     }
 
-    // Resolve the places the AI extracted into REAL coordinates (anti-hallucination:
-    // anything the geocoder can't find is dropped and reported).
-    const wanted = [...(req.via_places ?? [])];
-    if (req.mode === 'punto_a_punto' && req.destination) wanted.push(req.destination);
-    const found: GeocodedPlace[] = [];
-    const missing: string[] = [];
-    for (const q of wanted.slice(0, 5)) {
-      const g = await geocodePlace(q, { lng: start.lng, lat: start.lat });
-      if (g) found.push(g);
-      else missing.push(q);
-    }
-    if (missing.length) toast(`Non ho trovato: ${missing.join(', ')}`);
-
-    if (found.length) {
-      for (const g of found) seedName(g.lng, g.lat, g.name);
-      const vias = found.map((g) => new maplibregl.LngLat(g.lng, g.lat));
-      if (req.mode === 'anello') {
-        const loop = await generateLoopVia(start, vias, km, runRoute);
-        waypoints.replaceAll(loop.points, { silent: true });
-        lastLoop = { start, targetKm: km };
-        regenAlt = 0;
-        setMode('manuale');
-        showRoute(loop.route);
-        setSheetCollapsed(true);
-      } else {
-        setMode('manuale');
-        waypoints.replaceAll([start, ...vias]);
-      }
-      return;
-    }
-
-    // Thematic ride: let the AI curate REAL OSM candidates into the loop.
+    // Generic thematic ride: curate REAL OSM candidates into the loop.
     if (req.mode === 'anello' && (req.themes?.length ?? 0) > 0) {
       try {
         aiSummary.textContent = `${req.summary} — l'IA sta scegliendo le tappe…`;
@@ -715,9 +762,7 @@ aiBar.addEventListener('submit', async (e) => {
             regenAlt = 0;
             setMode('manuale');
             showRoute(loop.route);
-            if (cur.explanation) {
-              aiSummary.textContent = `${req.summary} — ${cur.explanation}`;
-            }
+            aiSummary.textContent = req.description || (cur.explanation ? `${req.summary} — ${cur.explanation}` : req.summary);
             setSheetCollapsed(true);
             return;
           }
@@ -738,7 +783,7 @@ aiBar.addEventListener('submit', async (e) => {
     errBox.hidden = false;
   } finally {
     aiGo.disabled = false;
-    aiGo.textContent = '✨';
+    aiGo.classList.remove('loading');
   }
 });
 
@@ -836,5 +881,12 @@ btnClear.addEventListener('click', () => waypoints.clear());
 map.on('load', () => {
   const meta = document.getElementById('topbar-meta');
   if (meta) meta.textContent = 'pronto';
+  // Load the favourite start automatically, if set.
+  const fav = getFavoriteStart();
+  if (fav) {
+    seedName(fav.lng, fav.lat, fav.name);
+    waypoints.add(new maplibregl.LngLat(fav.lng, fav.lat));
+    map.flyTo({ center: [fav.lng, fav.lat], zoom: 11 });
+  }
   renderSheet();
 });

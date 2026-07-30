@@ -22,6 +22,7 @@
     <header class="topbar">
       <div class="logo">Moto<span>Route</span></div>
       <div class="topbar-actions">
+        <button class="icon-btn" id="poi-toggle" aria-pressed="false" title="Punti di interesse: panorami, valichi, benzinai">🌄</button>
         <button class="icon-btn" id="btn-starts" title="Partenze salvate" aria-label="Partenze salvate">🏠</button>
         <button class="icon-btn" id="btn-import" title="Importa GPX" aria-label="Importa GPX">📥</button>
         <button class="icon-btn" id="btn-library" title="Percorsi salvati" aria-label="Percorsi salvati">★</button>
@@ -29,7 +30,7 @@
     </header>
     <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden />
     <div id="map" aria-label="Mappa del percorso"></div>
-    <button class="poi-toggle" id="poi-toggle" aria-pressed="false" title="Punti di interesse: panorami, valichi, benzinai">🌄</button>
+    <button class="fab-regen" id="fab-regen" title="Rifai diverso" aria-label="Rifai diverso" hidden>🎲</button>
     <div class="sheet" id="sheet">
       <button class="sheet-grip" id="sheet-grip" aria-label="Mostra o nascondi il pannello" aria-expanded="true">
         <span class="grip-bar"></span>
@@ -38,7 +39,7 @@
       <div class="sheet-body" id="sheet-body">
         <form class="ai-bar" id="ai-bar" autocomplete="off">
           <input type="text" id="ai-input" placeholder="Es. anello di 200 km verso le montagne, con curve" aria-label="Descrivi il giro che vuoi" />
-          <button type="submit" class="ai-go" id="ai-go" title="Crea il giro">✨</button>
+          <button type="submit" class="ai-go" id="ai-go" title="Crea il giro con l'IA"><img src="/icon-192.png" alt="Crea" /></button>
         </form>
         <p class="ai-summary" id="ai-summary" hidden></p>
         <div class="mode-toggle" id="mode-toggle">
@@ -80,7 +81,6 @@
         <p class="weather-line" id="weather-line" hidden></p>
         <div class="regen-row" id="regen-row" hidden>
           <button class="btn btn-outline" id="btn-regen">🎲 Rifai diverso</button>
-          <button class="btn btn-outline" id="btn-meteo">🌤 Meteo</button>
         </div>
         <div class="export-row" id="nav-row" hidden>
           <button class="btn btn-blue" id="btn-maps">🗺 Apri in Maps</button>
