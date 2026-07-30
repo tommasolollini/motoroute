@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="MotoRoute — pianificatore di itinerari in moto con IA tematica, routing tortuoso e mappa reale." />
+<style>*{margin:0}body{margin:0}img{max-width:100%}</style>
+</head>
+<body>
+<title>MotoRoute — Smart Route, better rides</title>
+<style>
+  :root {
+    --asphalt: #100F0E;
+    --casing:  #1A0D00;
+    --amber:   #EF9F27;
+    --amber-deep: #BA7517;
+    --bone:    #F0ECE4;
+
+    /* light (default) — carta grigio-pietra, non crema */
+    --paper:   #E5E4DF;
+    --panel:   #DCDBD4;
+    --ink:     #1A1814;
+    --muted:   #5C574C;
+    --rule:    #C6C4BA;
+    --accent:  #8A4E06;
+
+    --display: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --body: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --data: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+    --measure: 63ch;
+    --rail: 76px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #141311;
+      --panel: #1C1A17;
+      --ink:   #EDE9E1;
+      --muted: #9A9287;
+      --rule:  #2E2A25;
+      --accent: var(--amber);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #141311;
+    --panel: #1C1A17;
+    --ink:   #EDE9E1;
+    --muted: #9A9287;
+    --rule:  #2E2A25;
+    --accent: var(--amber);
+  }
+  :root[data-theme="light"] {
+    --paper: #E5E4DF;
+    --panel: #DCDBD4;
+    --ink:   #1A1814;
+    --muted: #5C574C;
+    --rule:  #C6C4BA;
+    --accent: #8A4E06;
+  }
+
+  * { box-sizing: border-box; }
+
+  .page {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.68;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+
+  /* ---------- eyebrow / labels ---------- */
+  .eyebrow {
+    font-family: var(--data);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  /* ---------- HERO (sempre notturno: il logo ha parti bianche) ---------- */
+  .hero {
+    position: relative;
+    background: var(--asphalt);
+    color: var(--bone);
+    overflow: hidden;
+    isolation: isolate;
+  }
+  #trace {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    display: block;
+  }
+  /* velatura: il tracciato resta leggibile a destra, il testo appoggia su asfalto pulito */
+  .hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(96deg,
+      rgba(16,15,14,0.95) 0%,
+      rgba(16,15,14,0.90) 34%,
+      rgba(16,15,14,0.55) 62%,
+      rgba(16,15,14,0.10) 100%);
+  }
+  .hero-inner {
+    position: relative;
+    z-index: 2;
+    max-width: 1080px;
+    margin-inline: auto;
+    padding: clamp(56px, 11vw, 116px) 24px clamp(44px, 8vw, 84px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 22px;
+  }
+  .mark {
+    width: clamp(92px, 15vw, 132px);
+    height: auto;
+    display: block;
+  }
+  .hero .eyebrow { color: #948B7C; }
+  h1 {
+    font-family: var(--display);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: -0.03em;
+    line-height: 0.94;
+    font-size: clamp(44px, 9.2vw, 104px);
+    margin: 0;
+    text-wrap: balance;
+    color: var(--bone);
+  }
+  h1 em {
+    font-style: normal;
+    color: var(--amber);
+  }
+  .lede {
+    margin: 0;
+    max-width: 54ch;
+    font-size: clamp(17px, 2.1vw, 21px);
+    line-height: 1.6;
+    color: #CFC7B9;
+  }
+  .lede b { color: var(--bone); font-weight: 400; }
+
+  .specs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 44px;
+    margin: 10px 0 0;
+    padding-top: 24px;
+    border-top: 1px solid #2A241C;
+    width: 100%;
+    max-width: 640px;
+  }
+  .specs div { display: flex; flex-direction: column; gap: 3px; }
+  .specs dt {
+    font-family: var(--data);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8A8175;
+    order: 2;
+  }
+  .specs dd {
+    margin: 0;
+    order: 1;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 30px;
+    letter-spacing: -0.02em;
+    color: var(--amber);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- ROUTE / SPINE ---------- */
+  .route {
+    padding: clamp(48px, 7vw, 88px) 0 40px;
+  }
+  .route-inner {
+    position: relative;
+    max-width: 1080px;
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+  /* la linea cade esattamente sul centro delle pastiglie:
+     24px di padding + 24px (mezza pastiglia) - 2px (mezza linea) */
+  .spine {
+    position: absolute;
+    left: 46px;
+    top: 26px;
+    bottom: 0;
+    width: 4px;
+    background: var(--rule);
+    border-radius: 2px;
+  }
+  .spine-fill {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 0;
+    background: var(--amber);
+    border-radius: 2px;
+  }
+
+  .stop {
+    position: relative;
+    padding-left: var(--rail);
+    margin-bottom: clamp(48px, 7vw, 86px);
+  }
+  .stop:last-of-type { margin-bottom: 0; }
+
+  .stop-label {
+    position: absolute;
+    left: 0;
+    top: 2px;
+    width: 48px;
+    height: 48px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--casing);
+    color: var(--amber);
+    border: 3px solid var(--amber);
+    font-family: var(--data);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .stop[data-state="idle"] .stop-label {
+    background: var(--panel);
+    border-color: var(--rule);
+    color: var(--muted);
+  }
+
+  .stop-head { margin-bottom: 20px; }
+  h2 {
+    font-family: var(--display);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: -0.022em;
+    line-height: 1.02;
+    font-size: clamp(27px, 4.4vw, 42px);
+    margin: 6px 0 0;
+    text-wrap: balance;
+  }
+  .stop p { max-width: var(--measure); }
+  .stop p + p { margin-top: 1em; }
+
+  .pull {
+    margin: 26px 0;
+    padding: 20px 24px;
+    border-left: 4px solid var(--amber);
+    background: var(--panel);
+    max-width: var(--measure);
+    font-size: 18px;
+    line-height: 1.56;
+  }
+  .pull strong { font-weight: 700; }
+
+  /* ---------- sequenza IA ---------- */
+  .steps {
+    list-style: none;
+    margin: 26px 0 0;
+    padding: 0;
+    max-width: var(--measure);
+    counter-reset: s;
+  }
+  .steps li {
+    counter-increment: s;
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 16px;
+    padding: 16px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .steps li::before {
+    content: counter(s, decimal-leading-zero);
+    font-family: var(--data);
+    font-size: 12px;
+    color: var(--accent);
+    padding-top: 5px;
+    letter-spacing: 0.05em;
+  }
+  .steps h3 {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    margin: 0 0 3px;
+  }
+  .steps p { margin: 0; font-size: 16px; color: var(--muted); }
+
+  /* ---------- feature grid ---------- */
+  .feats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-top: 26px;
+  }
+  .feat {
+    background: var(--paper);
+    padding: 20px 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .feat h3 {
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .feat p { margin: 0; font-size: 15.5px; line-height: 1.55; color: var(--muted); max-width: none; }
+
+  /* ---------- architettura ---------- */
+  .arch {
+    margin-top: 26px;
+    display: grid;
+    gap: 14px;
+    max-width: var(--measure);
+  }
+  .tier {
+    border: 1px solid var(--rule);
+    background: var(--panel);
+    padding: 16px 18px;
+  }
+  .tier > .eyebrow { margin-bottom: 8px; }
+  .tier p { margin: 0; font-size: 16px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+  .chip {
+    font-family: var(--data);
+    font-size: 12px;
+    padding: 4px 9px;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    background: var(--paper);
+  }
+  .chip[data-key] { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- tabella tecnologie ---------- */
+  .table-scroll {
+    overflow-x: auto;
+    margin-top: 22px;
+    border: 1px solid var(--rule);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 560px;
+    font-family: var(--data);
+    font-size: 13.5px;
+  }
+  caption {
+    caption-side: top;
+    text-align: left;
+    font-family: var(--data);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 14px 16px 10px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 16px;
+    border-top: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  thead th {
+    font-size: 11px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 400;
+    border-top: 0;
+  }
+  td:nth-child(2) { color: var(--accent); }
+  td:nth-child(3) { color: var(--muted); }
+  tbody tr:hover { background: var(--panel); }
+
+  /* ---------- footer ---------- */
+  .end {
+    border-top: 1px solid var(--rule);
+    margin-top: clamp(56px, 8vw, 96px);
+    padding: 34px 0 56px;
+  }
+  .end-inner {
+    max-width: 1080px;
+    margin-inline: auto;
+    padding-inline: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 40px;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .end p { margin: 0; font-size: 15px; color: var(--muted); }
+  .sig {
+    font-family: var(--display);
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    font-weight: 800;
+    font-size: 19px;
+    color: var(--ink);
+  }
+  .sig span { color: var(--accent); }
+
+  a { color: var(--accent); text-underline-offset: 3px; }
+  a:focus-visible, .stop:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+  @media (max-width: 640px) {
+    .page { font-size: 16px; }
+    .stop { padding-left: 0; }
+    .stop-label { position: static; margin-bottom: 12px; }
+    .spine { display: none; }
+    .specs dd { font-size: 25px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="hero">
+    <canvas id="trace" aria-hidden="true"></canvas>
+    <div class="hero-inner">
+      <img class="mark" src="data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDEyNTQgMTI1NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJNb3RvUm91dGUiPgo8dGl0bGU+TW90b1JvdXRlPC90aXRsZT4KPCEtLSBPZmZpY2lhbCBNb3RvUm91dGUgbG9nbywgYmFja2dyb3VuZCByZW1vdmVkICh0cmFuc3BhcmVudCkuIC0tPgo8cGF0aCBmaWxsPSIjRjZGMkVCIiBkPSIKTTYxNS43MTQ3MjIsNDYxLjEzNjAxNyBDNTQwLjk2MDYzMiw0NTMuNzU3NDE2IDQ2Ni40MTM2MDUsNDUxLjkxNDQ1OSAzOTEuNzY5Njg0LDQ1MC4zMjU5MjggQzQwNS4zNjQyODgsNDQ4Ljk0MTg2NCA0MTguOTQzNTEyLDQ0Ny4zODAzNDEgNDMyLjU1NTk2OSw0NDYuMjAzMTU2IEM1MDcuODQxNDkyLDQzOS42OTI4MTAgNTgzLjI1ODA1Nyw0MzcuNDQ0NDU4IDY1OC43NzI4ODgsNDQwLjM3NDYwMyBDNzE3Ljc0NjY0Myw0NDIuNjYyOTY0IDc3Ni41MDk0NjAsNDQ3LjI4ODU0NCA4MzQuMzI0NzY4LDQ2MC4wNjYxNjIgQzg1OC43Nzc2NDksNDY1LjQ3MDM5OCA4ODIuNzMwMjI1LDQ3Mi40Njk1NDMgOTA0Ljk1NDEwMiw0ODQuMzExMjE4IEM5MTcuNTM4MzkxLDQ5MS4wMTY2MzIgOTI5LjMxNjQwNiw0OTguODYwMDE2IDkzNi43MDA5ODksNTExLjY4MDkzOSBDOTQ2LjQwNTY0MCw1MjguNTI5NzI0IDk0My4yNzc2NDksNTQ3LjE5NjIyOCA5MjguNTk2MTMwLDU2MC4wMDI5MzAgQzkxOS4wNTA3MjAsNTY4LjMyOTQwNyA5MDcuNTE4MzExLDU3Mi42MjI5MjUgODk1LjU0NjAyMSw1NzUuNzk4MTU3IEM4NjguMDEyODc4LDU4My4xMDAyMjAgODM5Ljc1Mjk5MSw1ODUuMjQ3NzQyIDgxMS40NzkwMDQsNTg2LjkxOTY3OCBDNzU0LjkzNjI3OSw1OTAuMjYzNDI4IDY5OC4zMjU4NjcsNTkyLjg0ODM4OSA2NDIuMTE0MDc1LDYwMC4xODM0MTEgQzU5Ni44NTMzOTQsNjA2LjA4OTUzOSA1NTEuODQ2MTMwLDYxMy41MDgxMTggNTA4Ljk2NzA3Miw2MzAuMDczMTIwIEM0OTIuNzU2MTY1LDYzNi4zMzU2OTMgNDc3LjE4Nzk1OCw2NDMuODkyNTc4IDQ2NC45MDUyMTIsNjU2LjczMzA5MyBDNDUxLjA0NTE2Niw2NzEuMjIyNTk1IDQ0Ny42NTU2NzAsNjg4LjE1MTI0NSA0NTMuNTI4ODM5LDcwNy4wNzUxOTUgQzQ1OS4yMjI2ODcsNzI1LjQyMTMyNiA0NzAuMzMzMzEzLDc0MC42MjMzNTIgNDgyLjI3MzU5MCw3NTUuMjIzMDgzIEM1MTEuNDcyNDEyLDc5MC45MjUyOTMgNTQ0Ljk1MjUxNSw4MjIuNDc0MDYwIDU3OC41ODUxNDQsODUzLjg2MDk2MiBDNTgzLjQxMjIzMSw4NTguMzY1NzIzIDU4OC4zMDgxNjcsODYyLjc5Njc1MyA1OTIuNzE0OTA1LDg2OC4wMzE2MTYgQzU5MS42ODg4NDMsODY3Ljc2OTE2NSA1OTAuNjAyNTM5LDg2Ny42NDQwNDMgNTg5LjY0NTMyNSw4NjcuMjI0NTQ4IEM1MzcuMTQ0NTkyLDg0NC4yMTI0NjMgNDg1Ljk5ODcxOCw4MTguNjIyOTI1IDQzOC41MzgyNjksNzg2LjI1NDE1MCBDNDE4LjI3ODQ3Myw3NzIuNDM2NzA3IDM5OC45ODQzMTQsNzU3LjMzMDkzMyAzODMuMDk1MDAxLDczOC4zNzcyNTggQzM3My44OTg2NTEsNzI3LjQwNzI4OCAzNjYuNDQ3MTEzLDcxNS4zODk4MzIgMzYzLjA3MjE3NCw3MDEuMzU4ODI2IEMzNTcuNTYwODUyLDY3OC40NDYwNDUgMzY1LjQ2ODIwMSw2NTkuNzY5MTY1IDM4Mi4zNDQ3MjcsNjQ0LjM4OTE2MCBDNDAwLjE5MzUxMiw2MjguMTIzMjMwIDQyMS45MjcyMTYsNjE4LjgyMTA0NSA0NDQuMzIxNDExLDYxMS4wMjM5ODcgQzQ4Ni4yOTQyNTAsNTk2LjQxMDAzNCA1MjkuNzQ3MTkyLDU4Ny43NzUwMjQgNTczLjUyNzAzOSw1ODEuMTA4ODg3IEM2MjAuMTE0ODY4LDU3NC4wMTUyNTkgNjY2LjkxNDE4NSw1NjguMzE1MzY5IDcxMy42MDc2NjYsNTYxLjkwOTI0MSBDNzM3LjAzMzYzMCw1NTguNjk1MzEyIDc2MC41MDI0NDEsNTU1LjY4NzU2MSA3ODMuNzk3NDI0LDU1MS42ODc0MzkgQzc5MS4zMDcwMDcsNTUwLjM5NzgyNyA3OTguOTY5MTE2LDU0Ny4yNjA2ODEgODA1LjQzMjEyOSw1NDMuMTgwMDU0IEM4MTkuMDUwODQyLDUzNC41ODE0MjEgODIwLjIyNjI1Nyw1MTkuMDk1MzM3IDgwNy44NjcxODgsNTA4LjgxOTU4MCBDODAwLjU2NDg4MCw1MDIuNzQ4MjYwIDc5MS45NjA4NzYsNDk3LjgwNzI4MSA3ODMuMjMzNzA0LDQ5My45NjkyNjkgQzc2MC4wOTAyMTAsNDgzLjc5MTIyOSA3MzUuNDU3NzAzLDQ3OC4zMjc1NzYgNzEwLjYzNDU4Myw0NzQuMzcxNzY1IEM2NzkuMjQzODM1LDQ2OS4zNjkzNTQgNjQ3LjY2ODgyMyw0NjUuNTIzMTkzIDYxNS43MTQ3MjIsNDYxLjEzNjAxNyB6Ii8+CjxwYXRoIGZpbGw9IiNFRThGMUMiIGQ9IgpNNzY0Ljc0MjQzMiw2MDEuNzc2MjQ1IEM3NzQuMDAyMTM2LDYwMS4xMzQ4MjcgNzgyLjc5NDE4OSw2MDAuNTA3MjAyIDc5MS41ODYzMDQsNTk5Ljg3OTYzOSBDNzkxLjYyMjE5Miw2MDAuMTI5OTQ0IDc5MS42NTgwODEsNjAwLjM4MDI0OSA3OTEuNjkzOTcwLDYwMC42MzA1NTQgQzc4Mi4xMTg5NTgsNjAyLjQwODYzMCA3NzIuNTA5NTgzLDYwNC4wMjA0NDcgNzYyLjk3NDg1NCw2MDUuOTkzMzQ3IEM3MjEuMjM2Mzg5LDYxNC42Mjk3NjEgNjc5LjY2MDE1Niw2MjMuOTc3MDUxIDY0MC40MjcwMDIsNjQxLjE5MTgzMyBDNjMxLjIyOTk4MCw2NDUuMjI3NDE3IDYyMi4xNDg5ODcsNjUwLjMwOTU3MCA2MTQuMzQ5NjcwLDY1Ni41NzI4MTUgQzYwMS4yNzQ3MTksNjY3LjA3MjU3MSA2MDAuNzA2MTc3LDY4MC40NzYwNzQgNjEzLjM0NzUzNCw2OTEuNTY4NDIwIEM2MjQuNzkwMjgzLDcwMS42MDkwMDkgNjM3LjE3Njk0MSw3MTEuMDQyNTQyIDY1MC40MTg3MDEsNzE4LjQ4MDQ2OSBDNjk5LjA1MDQxNSw3NDUuNzk2NjMxIDc0OC4wNTgxNjcsNzcyLjQ1NjQ4MiA3OTcuMjE5MDU1LDc5OC44MTM3ODIgQzg0MC43NzI3NjYsODIyLjE2NDc5NSA4ODQuNzE4NTY3LDg0NC43ODQ2NjggOTI4LjQ4ODY0Nyw4NjcuNzMyMTE3IEM5MjkuMzM5NjAwLDg2OC4xNzgyODQgOTMwLjE1OTA1OCw4NjguNjg0NDQ4IDkzMC45NjUyNzEsODcwLjAwMjk5MSBDOTI5LjQyMjQ4NSw4NzAuMDAyOTkxIDkyNy44Nzk3NjEsODcwLjAwMjk5MSA5MjYuMzM2OTc1LDg3MC4wMDMwNTIgQzg3NS44NTE2ODUsODcwLjAwNDk0NCA4MjUuMzY2Mzk0LDg3MC4wMjI1MjIgNzc0Ljg4MTE2NSw4NjkuOTUyNzU5IEM3NzIuODE4NjY1LDg2OS45NDk4OTAgNzcwLjQ4NTcxOCw4NjkuNjA0OTE5IDc2OC43MzQ4NjMsODY4LjYxMzcwOCBDNzE0LjU0ODU4NCw4MzcuOTQwODU3IDY2MC41MTUwMTUsODA2Ljk2ODY4OSA2MDkuMDQ0OTgzLDc3MS44NjEzODkgQzU4OC40Mzg4NDMsNzU3LjgwNjA5MSA1NjguNTcwMzEyLDc0Mi41NTg5NjAgNTQ5LjI2OTE2NSw3MjYuNzUxNTI2IEM1NDAuNjcwMjI3LDcxOS43MDkxMDYgNTMzLjMxODI5OCw3MTAuNTkyNDY4IDUyNy4xNDk1MzYsNzAxLjI2MTA0NyBDNTE3LjQwNDE3NSw2ODYuNTE5NDA5IDUyMC4yNTI3NDcsNjcxLjAyNTAyNCA1MzMuMzI3MDI2LDY1OC45NjAyMDUgQzU0NC42OTEwNDAsNjQ4LjQ3MzUxMSA1NTguNDc2ODY4LDY0Mi4yMjc5MDUgNTcyLjc2MTIzMCw2MzYuOTc1MjIwIEM2MDYuMTk0NDU4LDYyNC42ODA5NjkgNjQwLjgwNzYxNyw2MTcuMDQzNDU3IDY3NS45ODI5MTAsNjEyLjE3NTA0OSBDNzA1LjMzMDUwNSw2MDguMTEzMjIwIDczNC44MzgwNzQsNjA1LjIwNzcwMyA3NjQuNzQyNDMyLDYwMS43NzYyNDUgeiIvPgo8cGF0aCBmaWxsPSIjRjZGMkVCIiBkPSIKTTM4OC45NTU2MjcsNDA3Ljk0NzI2NiBDMzI3LjEyNTQ1OCw0NTcuNTQyNjAzIDMwNS43NzI4ODgsNDczLjE2NjE5OSAyOTYuMjI4NjM4LDQ3NS4xMDY1OTggQzI5OS4zOTk1MzYsNDcwLjY3OTUwNCAzMDEuNjMwOTgxLDQ2Ni42NTUzNjUgMzA0LjY5ODA1OSw0NjMuNDI0NDA4IEMzMzEuMzExNjQ2LDQzNS4zODg0ODkgMzU3LjY4NDA4Miw0MDcuMTA3NzU4IDM4NC44NzU0ODgsMzc5LjYzOTU1NyBDNDQxLjk3Mzg0NiwzMjEuOTYwMDIyIDQ5OS41MjI2MTQsMjY0LjcyNjMxOCA1NTYuODk2MjQwLDIwNy4zMTkzMzYgQzU2My45MjUzNTQsMjAwLjI4NjE0OCA1NzAuNjI3MDE0LDIwMC4zNTg2NzMgNTc3LjUzOTEyNCwyMDcuNzE4MTcwIEM2MDkuNTk2NDM2LDI0MS44NTA1NTUgNjQxLjU5NDA1NSwyNzYuMDM5MDAxIDY3My42MzIwODAsMzEwLjE4OTYwNiBDNjg1Ljk0NjA0NSwzMjMuMzE1NTIxIDY5OC4yNzUzMzAsMzM2LjQyNzU1MSA3MTAuNjY5MzEyLDM0OS40Nzc4MTQgQzcxNS41Mjk5MDcsMzU0LjU5NTczNCA3MTkuMTUzOTMxLDM1NC41OTA5NzMgNzI0LjMxODk3MCwzNDkuODQxNzM2IEM3MzguOTE3MzU4LDMzNi40MTg1NzkgNzUzLjUxNTUwMywzMjIuOTk1MTE3IDc2OC4xMzAxMjcsMzA5LjU4OTYwMCBDNzc0Ljk0ODE4MSwzMDMuMzM1NTQxIDc4MS42MjUxMjIsMzAzLjAxMjI5OSA3ODguNTE0NzA5LDMwOS40MDMzMjAgQzgxNC4yOTE5OTIsMzMzLjMxNTE1NSA4NDAuMTQ0NDcwLDM1Ny4xNTU3NjIgODY1LjQ4MzY0MywzODEuNTI3MzQ0IEM4ODkuNTAyMzgwLDQwNC42Mjg4NzYgOTEyLjkyMjQyNCw0MjguMzUzMjcxIDkzNi41NzA4NjIsNDUxLjgzODgzNyBDOTM4LjExMzUyNSw0NTMuMzcwNzg5IDkzOS4zNTgwOTMsNDU1LjIwMjg4MSA5NDAuNzQxMjcyLDQ1Ni44OTUzODYgQzk0MC40MTYxMzgsNDU3LjIyNTA5OCA5NDAuMDkwOTQyLDQ1Ny41NTQ3NzkgOTM5Ljc2NTc0Nyw0NTcuODg0NDkxIEM5MzYuMjQ4MTA4LDQ1NS4zODQ0MzAgOTMyLjczMDU5MSw0NTIuODg0MTg2IDkyOS4yMTI4MzAsNDUwLjM4NDM2OSBDODgyLjEwOTU1OCw0MTYuOTExNTYwIDgzNS4wMDkxNTUsMzgzLjQzNDY2MiA3ODcuODk5MDQ4LDM0OS45NzE0NjYgQzc4Mi4wMjUyNjksMzQ1Ljc5OTI4NiA3ODAuNDM0MDIxLDM0NS45Nzg3OTAgNzc1Ljg1NjkzNCwzNTEuNTUyNzA0IEM3NjIuMTEzNjQ3LDM2OC4yODkzNjggNzQ4LjQyMzM0MCwzODUuMDY5NTgwIDczNC40NDM0ODEsNDAyLjE2MTU5MSBDNzI1LjYyMjMxNCwzOTQuNTUwNTY4IDcxNi45MjIxMTksMzg3LjEzMDM3MSA3MDguMzE1MzY5LDM3OS42MDMzMDIgQzY2NS40MTUwMzksMzQyLjA4NDI5MCA2MjIuNTIwNjMwLDMwNC41NTg0NzIgNTc5LjY4OTA4NywyNjYuOTYwOTk5IEM1NzYuMTI4MjM1LDI2My44MzUyNjYgNTczLjU0OTQzOCwyNjQuMTI1NDU4IDU3MC40NjQyMzMsMjY3LjU5OTI0MyBDNTU0Ljg2MTMyOCwyODUuMTY3MTE0IDUzOS4yMjk2NzUsMzAyLjcxMjY0NiA1MjMuMzQxODU4LDMyMC4wMjE2MDYgQzUyMC4yODA3NjIsMzIzLjM1NjUzNyA1MTYuMzQyMTYzLDMyNi4yMzE1MzcgNTEyLjI3NTA4NSwzMjguMjM3Mjc0IEM0OTUuMzk4NjIxLDMzNi41NTk5NjcgNDc4LjI1MjM1MCwzNDQuMzM0NTY0IDQ2MS4zNTIxNDIsMzUyLjYxMDYyNiBDNDU2LjMxNTQzMCwzNTUuMDc3MDg3IDQ1MS40NDI2ODgsMzU4LjEyMTkxOCA0NDcuMDM1ODU4LDM2MS41ODkzMjUgQzQyNy42NjE4MDQsMzc2LjgzMzE5MSA0MDguNDg1ODA5LDM5Mi4zMjg3OTYgMzg4Ljk1NTYyNyw0MDcuOTQ3MjY2IHoiLz4KPHBhdGggZmlsbD0iI0Y0RjFFOSIgZD0iCk0zMzcuOTQyNzE5LDEwMzYuMTcyODUyIEMzMzEuOTQ0NjQxLDEwMzYuMjI0OTc2IDMyNS45NDY1MzMsMTAzNi4yNzcxMDAgMzE5LjQ3MDU4MSwxMDM1Ljc1MTQ2NSBDMzE4Ljk4MjkxMCwxMDE0LjkyNTg0MiAzMTguOTc2MTk2LDk5NC42Nzc4NTYgMzE4Ljk1NjM2MCw5NzQuNDI5ODcxIEMzMTguOTU1MDQ4LDk3My4xMDU5NTcgMzE5LjE2NzI2Nyw5NzEuNjQ4NTYwIDMxOC42ODE3OTMsOTcwLjUwNzg3NCBDMzE4LjM4NTM3Niw5NjkuODExMzQwIDMxNi45NDQxNTMsOTY5LjYwMTk5MCAzMTYuMDE3MTUxLDk2OS4xNzM4MjggQzMxNS43NDMxNjQsOTcwLjEzODA2MiAzMTUuNDY5MTc3LDk3MS4xMDIyOTUgMzE1LjE5NTE5MCw5NzIuMDY2NTI4IEMzMDcuOTU5NDczLDk4Ny4yMjM1MTEgMzAwLjcyNDg4NCwxMDAyLjM4MTA0MiAyOTMuNDg2Nzg2LDEwMTcuNTM2ODA0IEMyOTIuNTU0NzQ5LDEwMTkuNDg4NDAzIDI5MS4yMzQ3MTEsMTAyMS4zNDEwMDMgMjkwLjczMzM5OCwxMDIzLjM5NTQ0NyBDMjg5LjMyMTQ3MiwxMDI5LjE4MTUxOSAyODUuNzA4NzQwLDEwMzAuNDkzODk2IDI4MC4xNTkwNTgsMTAzMC4xNTg4MTMgQzI3Ni40OTMwNDIsMTAyOS45Mzc1MDAgMjc0Ljc1NzA1MCwxMDI4Ljg3MjY4MSAyNzMuMTkwMjQ3LDEwMjUuNTM2MjU1IEMyNjQuNTEzMzY3LDEwMDcuMDU4OTYwIDI1NS41Mjc2NDksOTg4LjcyNjY4NSAyNDUuODcxNDkwLDk3MC40MDg4NzUgQzI0NS44NzE0OTAsOTkyLjE1MTYxMSAyNDUuODcxNDkwLDEwMTMuODk0MzQ4IDI0NS44NzE0OTAsMTAzNi4wMjQ2NTggQzIzNy43MTA3ODUsMTAzNi4wMjQ2NTggMjMwLjE1MTIzMCwxMDM2LjAyNDY1OCAyMjIuMjM2ODc3LDEwMzYuMDI0NjU4IEMyMjIuMjM2ODc3LDk5OC45NjQwNTAgMjIyLjIzNjg3Nyw5NjEuNzkyNzg2IDIyMi4yMzY4NzcsOTI0LjA0Mzk0NSBDMjMwLjg4OTI4Miw5MjQuMDQzOTQ1IDIzOS40OTk0OTYsOTIzLjg3ODQxOCAyNDguMDg5MjY0LDkyNC4yMjI3MTcgQzI0OS4zNzYyOTcsOTI0LjI3NDM1MyAyNTEuMDExNzk1LDkyNi41MTAwMTAgMjUxLjczNTg1NSw5MjguMDgxMTE2IEMyNjAuODUwMTI4LDk0Ny44NTc3MjcgMjY5LjgyMzcwMCw5NjcuNjk5MDM2IDI3OC44NDI5NTcsOTg3LjUxOTQ3MCBDMjc5LjU5NzkwMCw5ODkuMTc4NTI4IDI4MC40MjMwMzUsOTkwLjgwNTYwMyAyODEuNjM1NDA2LDk5My4zMTczMjIgQzI5MC4xNTk1NDYsOTc0LjYyMDExNyAyOTguMzgzNjM2LDk1Ni41ODEwNTUgMzA3LjE3NjgxOSw5MzguMjA3NzY0IEMzMDguMjAxMjk0LDkzNy4yMzM3MDQgMzA4Ljc4MTM3Miw5MzYuNjQ4ODY1IDMwOS4wOTIyODUsOTM1Ljk0NTE5MCBDMzExLjQxNjMyMSw5MzAuNjg0NjMxIDMxMy4xMTU5NjcsOTI0Ljc2NDk1NCAzMjAuODY5MDgwLDkyNS42ODE4ODUgQzMyMS4xOTIyMDAsOTI1LjcyMDA5MyAzMjEuNjMzNTc1LDkyNC43NTg2MDYgMzIyLjAxOTgzNiw5MjQuMjYyODE3IEMzMjQuMzgzNDg0LDkyNC4xOTk0NjMgMzI2Ljc0NzEwMSw5MjQuMTM2MTA4IDMyOS42NjE3NDMsOTI0LjUxMzMwNiBDMzMwLjc1NzcyMSw5MjUuMjczMzE1IDMzMS4yNzQ5MDIsOTI1LjgwNDE5OSAzMzEuODUxOTU5LDkyNS44ODAxODggQzMzOS4wMzE4MzAsOTI2LjgyNTAxMiAzMzkuMDM0NTc2LDkyNi44MDc5MjIgMzM5LjAzNDgyMSw5MzQuMDkzNDQ1IEMzMzkuMDM1MjQ4LDk0Ni4xODU3OTEgMzM4Ljk3NDk0NSw5NTguMjc4ODcwIDMzOS4xMDkxNjEsOTcwLjM2OTc1MSBDMzM5LjEyNjQzNCw5NzEuOTI2MzkyIDM0MC4xNTEwMDEsOTczLjQ3MTgwMiAzNDAuNzA4OTIzLDk3NS4wMjI0NjEgQzM0MC43NjkxNjUsOTc2LjQwMzM4MSAzNDAuODI5Mzc2LDk3Ny43ODQzMDIgMzQwLjQzODkwNCw5NzkuNzA2NzI2IEMzMzkuODE3MjAwLDk4Ni4yNTk0NjAgMzM5LjYzMTM3OCw5OTIuMjcwNTA4IDMzOS41Mjk3MjQsOTk4LjI4Mjg5OCBDMzM5LjUyNTY2NSw5OTguNTIxOTEyIDM0MC4zMjE0NzIsOTk4Ljc3NDQxNCAzNDAuNzQ0NjI5LDk5OS4wMjA2MzAgQzM0MC44MDM0NjcsMTAwMC43Mjc1MzkgMzQwLjg2MjMzNSwxMDAyLjQzNDM4NyAzNDAuNDY3NTkwLDEwMDQuNjkxNTI4IEMzMzguODI2OTM1LDEwMTAuMjM5MzE5IDMzNy42NDcwMzQsMTAxNS4yMzYzODkgMzQwLjc1MDY0MSwxMDIwLjAyMDAyMCBDMzQwLjgwMTA1NiwxMDIzLjcwNTEzOSAzNDAuODUxNTAxLDEwMjcuMzkwMjU5IDM0MC41MDAwMDAsMTAzMS42MDkxMzEgQzMzOS4zNzk2MDgsMTAzMy40ODYyMDYgMzM4LjY2MTE2MywxMDM0LjgyOTU5MCAzMzcuOTQyNzE5LDEwMzYuMTcyODUyIHoiLz4KPHBhdGggZmlsbD0iI0VBOEQxQyIgZD0iCk02NzguOTY2MTg3LDEwMTYuMDczMjQyIEM2NzUuNjk1MTI5LDEwMTAuNjIyODAzIDY3Mi43MjUwOTgsMTAwNS40MDc3MTUgNjY5LjQyOTQ0MywxMDAwLjQwNzE2NiBDNjY4LjU3NTAxMiw5OTkuMTEwNzc5IDY2Ni43NDk2OTUsOTk3Ljc4MTA2NyA2NjUuMjg3MzU0LDk5Ny42ODEwOTEgQzY2MC4zNTE4MDcsOTk3LjM0MzgxMSA2NTUuMzc4OTA2LDk5Ny41NTI2MTIgNjQ5LjgxOTk0Niw5OTcuNTUyNjEyIEM2NDkuODE5OTQ2LDEwMTAuNzA5NjU2IDY0OS44MTk5NDYsMTAyMy4yODcyOTIgNjQ5LjgxOTk0NiwxMDM2LjIyODAyNyBDNjQxLjQ3ODI3MSwxMDM2LjIyODAyNyA2MzMuNzQwMzU2LDEwMzYuMjI4MDI3IDYyNS41ODA0NDQsMTAzNi4yMjgwMjcgQzYyNS41ODA0NDQsOTk4Ljk1MzMwOCA2MjUuNTgwNDQ0LDk2MS43NzQyOTIgNjI1LjU4MDQ0NCw5MjQuMjQ4NjU3IEM2MjcuMzc3MDE0LDkyNC4xNTc4MzcgNjI4Ljk5NDM4NSw5MjQuMDA4NjY3IDYzMC42MTIxODMsOTI0LjAwNDcwMCBDNjQ1LjEwNjYyOCw5MjMuOTY4OTMzIDY1OS42MDYwMTgsOTIzLjcxNTQ1NCA2NzQuMDk0MTE2LDkyNC4wMDkzMzggQzY4OC43Nzk3ODUsOTI0LjMwNzE5MCA3MDEuNTg5ODQ0LDkyOC42NjI1MzcgNzA5Ljc2MDEzMiw5NDIuMTYwNTgzIEM3MTcuODE0NjM2LDk1NS40NjczNDYgNzE2Ljc5MjkwOCw5ODIuMTg3MzE3IDY5NS4wMjgxOTgsOTkyLjIwODMxMyBDNjk0LjI5MTI2MCw5OTIuNTQ3NjY4IDY5My42MDQ0MzEsOTkyLjk5NTg1MCA2OTIuNTI3NzcxLDk5My41OTgyNjcgQzY5Ni45MzkyMDksMTAwMC44NTIzNTYgNzAxLjIyOTYxNCwxMDA3Ljk2MDc1NCA3MDUuNTc0MTU4LDEwMTUuMDM2MDExIEM3MDkuODA0ODEwLDEwMjEuOTI1ODQyIDcxNC4wOTA4ODEsMTAyOC43ODE3MzggNzE4Ljg3Njk1MywxMDM2LjQ5NzkyNSBDNzA5LjYxNzczNywxMDM2LjQ5NzkyNSA3MDEuMzUzNTc3LDEwMzYuNjIxODI2IDY5My4xMDE0NDAsMTAzNi4zNjIxODMgQzY5MS44ODgwNjIsMTAzNi4zMjM5NzUgNjkwLjQxMTEzMywxMDM0LjY3MDUzMiA2ODkuNjA0NTUzLDEwMzMuNDEyOTY0IEM2ODYuMDA5NTgzLDEwMjcuODA3ODYxIDY4Mi42MTM3MDgsMTAyMi4wNzUxMzQgNjc4Ljk2NjE4NywxMDE2LjA3MzI0MiBNNjg5LjE2MTg2NSw5NjQuOTMxNzAyIEM2ODkuODc3MTk3LDk1NC41NzQ4OTAgNjg3LjIzNzk3Niw5NDguNTM4ODE4IDY3OC45ODA0MDgsOTQ3LjA4MTQyMSBDNjY5LjUzMTAwNiw5NDUuNDEzNjM1IDY1OS43MjU2NDcsOTQ1Ljc2MjQ1MSA2NDkuNzU2MzQ4LDk0NS4yMTc3MTIgQzY0OS43NTYzNDgsOTUxLjUwMjA3NSA2NDkuNzU2NDA5LDk1Ni40NzQ4NTQgNjQ5Ljc1NjQwOSw5NjEuNDQ3NjMyIEM2NDkuNzU2NDA5LDk2Ni4zNjE1MTEgNjQ5Ljc1NjM0OCw5NzEuMjc1MzkxIDY0OS43NTYzNDgsOTc2LjQxMDY0NSBDNjU4LjcxOTU0Myw5NzYuNDEwNjQ1IDY2Ny4wMTM3MzMsOTc2Ljc0ODc3OSA2NzUuMjY1ODA4LDk3Ni4zMDQzODIgQzY4MS45MzQwMjEsOTc1Ljk0NTE5MCA2ODYuNzgxNDMzLDk3Mi4zNjMzNDIgNjg5LjE2MTg2NSw5NjQuOTMxNzAyIHoiLz4KPHBhdGggZmlsbD0iI0Y0RjFFQSIgZD0iCk01ODYuNjEwMjI5LDEwMjguNjQ3ODI3IEM1NjkuMzk4NjIxLDEwNDAuOTg4ODkyIDU0Ny41NzM5NzUsMTA0MS43NTc5MzUgNTMxLjU3OTQwNywxMDMwLjgwNzAwNyBDNTE1LjA4NDcxNywxMDE5LjUxMzc5NCA1MDkuMDI4MjkwLDk5Ny42MDU5NTcgNTE2LjkyNzEyNCw5NzcuODA1OTA4IEM1MjQuMDM1Mjc4LDk1OS45ODc3OTMgNTQ0LjYzODkxNiw5NDguOTI3OTc5IDU2NC44NjM0NjQsOTUyLjQ3NjM3OSBDNTgyLjE1NTMzNCw5NTUuNTEwMTkzIDU5NC44NDMzODQsOTY0LjgxODc4NyA1OTkuNzE4OTk0LDk4Mi4wOTYzMTMgQzYwNC43MDk1MzQsOTk5Ljc4MTA2NyA2MDAuOTk1OTcyLDEwMTUuNzAzNjc0IDU4Ni42MTAyMjksMTAyOC42NDc4MjcgTTU2My41NTcxMjksMTAxNi42MjQxNDYgQzU2NC45MjMyNzksMTAxNi4wMTczOTUgNTY2LjM0MzUwNiwxMDE1LjUwODQ4NCA1NjcuNjQ3MDk1LDEwMTQuNzg4NDUyIEM1NzcuOTQzNTQyLDEwMDkuMTAwODkxIDU4MS41NTY5NDYsOTk0LjAzMzE0MiA1NzUuMjYwODY0LDk4My4xNzU5NjQgQzU2OS42MzkyODIsOTczLjQ4MTg3MyA1NTYuNDM4OTY1LDk3MC4xNzcxODUgNTQ2Ljk0NTQ5Niw5NzYuMDg3MDk3IEM1MzguMjE0MjMzLDk4MS41MjI2NDQgNTM0Ljc2MDkyNSw5OTMuNjI0MzkwIDUzOC44MzgwNzQsMTAwNC40OTkwMjMgQzU0Mi40MzE4ODUsMTAxNC4wODQ0NzMgNTUxLjI3MjQwMCwxMDE4LjY0NjE3OSA1NjMuNTU3MTI5LDEwMTYuNjI0MTQ2IHoiLz4KPHBhdGggZmlsbD0iI0Y0RjFFQSIgZD0iCk00MDUuOTMxMDkxLDEwMzguMDI3ODMyIEMzODQuNTYxNDMyLDEwNDAuMDc5NzEyIDM2Ny4zMjUyNTYsMTAzMS42ODUwNTkgMzU5LjE5NDgyNCwxMDE1LjUyMDMyNSBDMzQ3LjgzMjI0NSw5OTIuOTI5NTA0IDM1Ny41MTUwNDUsOTY1LjI5ODcwNiAzODAuMTUzNzE3LDk1NS43MTIxNTggQzQwNC42Mjk5NDQsOTQ1LjM0NzQ3MyA0MzIuNjUzNzE3LDk1Ni43ODAzMzQgNDQwLjY4MDA1NCw5ODAuNjk2NDcyIEM0NDcuNDM2MjQ5LDEwMDAuODI4MDY0IDQ0MC41MzcyNjIsMTAzMi4wMDE5NTMgNDA1LjkzMTA5MSwxMDM4LjAyNzgzMiBNNDE2LjA4Nzk4Miw5ODIuNTk4NDUwIEM0MTIuMDEwMzc2LDk3OS42NTk3OTAgNDA4LjMzMDY4OCw5NzUuMzU1OTU3IDQwMy43ODI4OTgsOTc0LjAzMDQ1NyBDMzg4LjE3NjIwOCw5NjkuNDgxNzUwIDM3NS43MTY3MDUsOTgzLjExODg5NiAzNzguODE4ODQ4LDEwMDAuNjM1NjIwIEMzODAuNDM5Nzg5LDEwMDkuNzg4NTEzIDM4Ny43MzQ4OTQsMTAxNi41MzU0NjEgMzk2Ljc4ODAyNSwxMDE3LjI1NDUxNyBDNDA2Ljc0OTcyNSwxMDE4LjA0NTc3NiA0MTUuMTAxMTA1LDEwMTIuNzcwMjAzIDQxNy45ODg5MjIsMTAwMy41MjkxMTQgQzQyMC4xNDM2NzcsOTk2LjYzMzc4OSA0MTkuOTIyODgyLDk4OS43NzQyMzEgNDE2LjA4Nzk4Miw5ODIuNTk4NDUwIHoiLz4KPHBhdGggZmlsbD0iI0VDOEQxQyIgZD0iCk03MjYuODA4NjU1LDk3Ny44OTQ3NzUgQzczOC42MTE3NTUsOTUwLjU0Mzc2MiA3NzIuOTUwMTM0LDk0NS43MDkwNDUgNzkzLjEzMzM2Miw5NTkuNDE0NjczIEM4MDkuMDY4OTcwLDk3MC4yMzU5MDEgODE1LjgwNTc4Niw5OTEuMjMzNTIxIDgwOS4wNjQ2OTcsMTAxMC4zMTk1ODAgQzgwMi41NTg2NTUsMTAyOC43NDAxMTIgNzg0LjYxNTM1NiwxMDQwLjE4MTI3NCA3NjQuOTQ2NzE2LDEwMzguNDUwMzE3IEM3MzMuMDgzODAxLDEwMzUuNjQ2MjQwIDcxNS44MzA5MzMsMTAwOC41MjEzMDEgNzI2LjgwODY1NSw5NzcuODk0Nzc1IE03NjcuNDkyODU5LDk3My4xODI2MTcgQzc2NS42ODc1MDAsOTczLjQxOTY3OCA3NjMuODE3MDE3LDk3My40MzE4MjQgNzYyLjA4Nzc2OSw5NzMuOTMyMDY4IEM3NTMuOTQ3NzU0LDk3Ni4yODY5ODcgNzQ5LjE3NjY5Nyw5ODEuODg3MTQ2IDc0Ny42NTEzMDYsOTkwLjA2NTczNSBDNzQ1Ljk2MjE1OCw5OTkuMTIyOTI1IDc0Ny41NDYzODcsMTAwNy40MTYyNjAgNzU1LjMwOTAyMSwxMDEzLjMxODc4NyBDNzYxLjk4ODU4NiwxMDE4LjM5NzcwNSA3NjkuNDIxMTQzLDEwMTguODEwMDU5IDc3Ni45MjQ1MDAsMTAxNS4yMTc0NjggQzc4NS40MDcxMDQsMTAxMS4xNTYxODkgNzg5LjY3MzAzNSwxMDAxLjA0OTkyNyA3ODcuODA4MjI4LDk5MC4wNzA1NTcgQzc4Ni4yMjU3NjksOTgwLjc1MzYwMSA3NzkuMDgwNTY2LDk3NC41NjA0ODYgNzY3LjQ5Mjg1OSw5NzMuMTgyNjE3IHoiLz4KPHBhdGggZmlsbD0iI0VCOEQxRCIgZD0iCk0xMDAyLjIzMTgxMiw5NTUuMDY3NTA1IEMxMDExLjU5OTMwNCw5NTEuNTc1MTM0IDEwMjAuNzk4NTg0LDk1MC44ODY5MDIgMTAzMC4wNTA0MTUsOTUzLjUxODkyMSBDMTA0NS44ODM3ODksOTU4LjAyMzU2MCAxMDU2Ljc5OTMxNiw5NzEuODg3MTQ2IDEwNTcuOTEwNzY3LDk4OC44MDMzNDUgQzEwNTguMjAzODU3LDk5My4yNjI1NzMgMTA1Ny45NTUyMDAsOTk3Ljc1NzUwNyAxMDU3Ljk1NTIwMCwxMDAyLjcxODg3MiBDMTAzOC44MDU3ODYsMTAwMi43MTg4NzIgMTAxOS45MjM4ODksMTAwMi43MTg4NzIgMTAwMC4zMjkyODUsMTAwMi43MTg4NzIgQzEwMDEuNDAwMzkxLDEwMDkuMzA3Njc4IDEwMDQuNzI1MjgxLDEwMTMuNDAwNTc0IDEwMDkuOTI5MTM4LDEwMTYuMTUyMjgzIEMxMDE5LjQ4NDg2MywxMDIxLjIwNTEzOSAxMDI4LjAyMTM2MiwxMDE5Ljc1NDU3OCAxMDQxLjYzMTM0OCwxMDEwLjcyMzU3MiBDMTA0NS43OTA2NDksMTAxNS4xNTA3NTcgMTA0OS45ODI2NjYsMTAxOS42MTI2MTAgMTA1NC4xNDc1ODMsMTAyNC4wNDU2NTQgQzEwNDMuMDAxNDY1LDEwMzcuMTIyMTkyIDEwMjEuODIzMzAzLDEwNDIuMDIzOTI2IDEwMDMuODc4NDc5LDEwMzUuODk1MjY0IEM5ODcuNjQ4NDk5LDEwMzAuMzUyMTczIDk3Ny40MDk1NDYsMTAxNS44ODkyODIgOTc2LjUzNzM1NCw5OTcuMjc1MDg1IEM5NzUuNjQzNjc3LDk3OC4yMDI2OTggOTg0Ljc5NDQzNCw5NjMuMDAzMTEzIDEwMDIuMjMxODEyLDk1NS4wNjc1MDUgTTEwMzQuMDQ3MjQxLDk4MS43NDQ5OTUgQzEwMjkuOTU5ODM5LDk3My4wODA3NTAgMTAyMi40OTYyMTYsOTY5LjYwMzI3MSAxMDEzLjA5MDgyMCw5NzEuOTgxMDE4IEMxMDA1LjkxNjY4Nyw5NzMuNzk0Njc4IDEwMDAuODE5Mjc1LDk4MC4wOTg5OTkgMTAwMS4wOTYyNTIsOTg2LjczNTIyOSBDMTAxMi4zMzkyMzMsOTg2LjczNTIyOSAxMDIzLjU3NTU2Miw5ODYuNzM1MjI5IDEwMzUuMjAxMTcyLDk4Ni43MzUyMjkgQzEwMzQuODQ2NDM2LDk4NS4wNDEwNzcgMTAzNC41ODA2ODgsOTgzLjc3MTYwNiAxMDM0LjA0NzI0MSw5ODEuNzQ0OTk1IHoiLz4KPHBhdGggZmlsbD0iI0VDOEQxQyIgZD0iCk04MjMuOTEyMzU0LDk4OC4wMDAwMDAgQzgyMy45MDUxNTEsOTc2LjU0MjcyNSA4MjMuOTA1MTUxLDk2NS41ODU0NDkgODIzLjkwNTE1MSw5NTQuMjk2NjMxIEM4MzEuNzE1MDI3LDk1NC4yOTY2MzEgODM5LjEwMTA3NCw5NTQuMjk2NjMxIDg0Ny4wNzQyMTksOTU0LjI5NjYzMSBDODQ3LjA3NDIxOSw5NTcuODMxNjA0IDg0Ny4wNzI4NzYsOTYxLjI3NTUxMyA4NDcuMDc0NDYzLDk2NC43MTk0MjEgQzg0Ny4wNzk4OTUsOTc2LjcwNzMzNiA4NDcuMDEyNDUxLDk4OC42OTU5MjMgODQ3LjExNDEzNiwxMDAwLjY4MzA0NCBDODQ3LjIwNjk3MCwxMDExLjYyMjI1MyA4NTIuMTgzMTA1LDEwMTcuMjM4ODMxIDg2MS40NzY5MjksMTAxNy4xODk2MzYgQzg3MS4yNzQ3MTksMTAxNy4xMzc3NTYgODc4LjM0MzY4OSwxMDEwLjEyMDkxMSA4NzguNDI4NDY3LDEwMDAuMDU5MTQzIEM4NzguNTM3OTY0LDk4Ny4wNzMzMDMgODc4LjQ0NDIxNCw5NzQuMDg1NjkzIDg3OC40MzgzNTQsOTYxLjA5ODg3NyBDODc4LjQzNzQzOSw5NTguOTY2MTg3IDg3OC40MzgyOTMsOTU2LjgzMzQzNSA4NzguNDM4MjkzLDk1NC4zMDE1MTQgQzg4Ni4zNTUyMjUsOTU0LjMwMTUxNCA4OTMuNzQwMjM0LDk1NC4zMDE1MTQgOTAxLjUzNDMwMiw5NTQuMzAxNTE0IEM5MDEuNTM0MzAyLDk4MS41MDI1MDIgOTAxLjUzNDMwMiwxMDA4LjU1OTg3NSA5MDEuNTM0MzAyLDEwMzYuMDgyMjc1IEM4OTQuNTg1OTM4LDEwMzYuMDgyMjc1IDg4Ny41NzE2NTUsMTAzNi4wODIyNzUgODgwLjQxODM5NiwxMDM2LjA4MjI3NSBDODc5Ljk4NTk2MiwxMDMyLjc5MDAzOSA4NzkuNTc3MzkzLDEwMjkuNjc5NDQzIDg3OS4xNjg4MjMsMTAyNi41Njg4NDggQzg3OC42NjQyNDYsMTAyNi4xMjUzNjYgODc4LjE1OTYwNywxMDI1LjY4MTg4NSA4NzcuNjU0OTY4LDEwMjUuMjM4NDAzIEM4NzcuMDE3OTQ0LDEwMjYuNDk0NjI5IDg3Ni42NDQyODcsMTAyOC4wMTAwMTAgODc1LjcwMjc1OSwxMDI4Ljk2NjU1MyBDODY3LjI1NjQwOSwxMDM3LjU0NzM2MyA4NTYuODExNDAxLDEwMzkuOTA2NjE2IDg0NS4zNzg4NDUsMTAzNy42NjI3MjAgQzgzMi42MDk4MDIsMTAzNS4xNTY0OTQgODI0LjI1MDE4MywxMDI0LjExMjY3MSA4MjMuOTMxNzYzLDEwMDkuOTc3MjM0IEM4MjMuNzcwNTY5LDEwMDIuODIxNzE2IDgyMy45MTM5NDAsOTk1LjY1OTMwMiA4MjMuOTEyMzU0LDk4OC4wMDAwMDAgeiIvPgo8cGF0aCBmaWxsPSIjRjRGMEU5IiBkPSIKTTQ0OC45NTQ2NTEsOTYyLjA1NDE5OSBDNDQ4Ljk1ODkyMyw5NTkuMjYzMzA2IDQ0OC45NTg5MjMsOTU2Ljk1NzU4MSA0NDguOTU4OTIzLDk1NC4wNjQ1NzUgQzQ1My4zOTc5MTksOTU0LjA2NDU3NSA0NTcuNDY1MDI3LDk1NC4wNjQ1NzUgNDYxLjk1MDgwNiw5NTQuMDY0NTc1IEM0NjEuOTUwODA2LDk0Ni4yMjUxNTkgNDYxLjk1MDgwNiw5MzguOTcxMTMwIDQ2MS45NTA4MDYsOTMxLjQyMDY1NCBDNDY5Ljc5NDk1Miw5MzEuNDIwNjU0IDQ3Ny4xOTI5OTMsOTMxLjQyMDY1NCA0ODUuMDM3NzIwLDkzMS40MjA2NTQgQzQ4NS4wMzc3MjAsOTM4LjgxNDE0OCA0ODUuMDM3NzIwLDk0Ni4wNzA5MjMgNDg1LjAzNzcyMCw5NTMuODE5MDkyIEM0OTIuMDQwMTYxLDk1My44MTkwOTIgNDk4LjYxNTIwNCw5NTMuODE5MDkyIDUwNS41Mzc4NDIsOTUzLjgxOTA5MiBDNTA1LjUzNzg0Miw5NjAuNjg5MDg3IDUwNS41Mzc4NDIsOTY3LjA1OTI2NSA1MDUuNTM3ODQyLDk3My45Mzg0NzcgQzQ5OC43NjkyMjYsOTczLjkzODQ3NyA0OTIuMTg1NTQ3LDk3My45Mzg0NzcgNDg1LjI2NTkzMCw5NzMuOTM4NDc3IEM0ODUuMjY1OTMwLDk4NS44NzgxMTMgNDg1LjAzODY2Niw5OTcuMzI1NTAwIDQ4NS4zNzI2NTAsMTAwOC43NTY0NzAgQzQ4NS41MTU0NDIsMTAxMy42NDMwMDUgNDg5LjI2Nzc2MSwxMDE2Ljc1NjQ3MCA0OTQuNDQ5NDYzLDEwMTcuMDE0NjQ4IEM0OTcuODgyNzUxLDEwMTcuMTg1NzkxIDUwMS4zNDk0ODcsMTAxNi42ODUzNjQgNTA1LjQxNzkwOCwxMDE2LjQ0OTgyOSBDNTA1LjcyNjUzMiwxMDIyLjQ4MDQwOCA1MDYuMDQ1MDc0LDEwMjguNzA0ODM0IDUwNi4zODk2NzksMTAzNS40MzgzNTQgQzQ5NC42NDk0NzUsMTAzOC44NDgwMjIgNDgzLjI5MjQxOSwxMDM5LjUxNjYwMiA0NzIuNjQ5OTYzLDEwMzIuOTE4MjEzIEM0NjQuNjkyNzE5LDEwMjcuOTg0NjE5IDQ2Mi4wNjc1NjYsMTAxOS45NzAzOTggNDYyLjAwNzkwNCwxMDExLjAxMjIwNyBDNDYxLjkyNzA5NCw5OTguODg0NjQ0IDQ2MS45ODc3OTMsOTg2Ljc1NjA0MiA0NjEuOTg3NzkzLDk3NC4xODUzMDMgQzQ1Ny42MTYxNTAsOTc0LjE4NTMwMyA0NTMuNjg2MDY2LDk3NC4xODUzMDMgNDQ4Ljk1MDM0OCw5NzQuMTg1MzAzIEM0NDguOTUwMzQ4LDk3MC4wMTkxMDQgNDQ4Ljk1MDM0OCw5NjYuMjc5MTc1IDQ0OC45NTQ2NTEsOTYyLjA1NDE5OSB6Ii8+CjxwYXRoIGZpbGw9IiNFQzhFMUQiIGQ9IgpNOTIyLjY3NDQzOCw5NTMuODgwMDA1IEM5MjQuMDI0OTAyLDk1Mi42NjA5NTAgOTI1LjYzMjIwMiw5NTEuNDgyNzg4IDkyNS42ODY0NjIsOTUwLjIzNzAwMCBDOTI1Ljk1MzM2OSw5NDQuMTEzMDk4IDkyNS44MDc2NzgsOTM3Ljk3MTI1MiA5MjUuODA3Njc4LDkzMS40NjE2NzAgQzkzMy42MjEyNzcsOTMxLjQ2MTY3MCA5NDEuMDEwNjIwLDkzMS40NjE2NzAgOTQ4Ljk4ODQwMyw5MzEuNDYxNjcwIEM5NDguOTg4NDAzLDkzOC44MjExNjcgOTQ4Ljk4ODQwMyw5NDYuMDU3MDA3IDk0OC45ODg0MDMsOTUzLjczOTc0NiBDOTU1Ljk2NDg0NCw5NTMuNzM5NzQ2IDk2Mi4zNzIzMTQsOTUzLjczOTc0NiA5NjkuMjAxOTA0LDk1My43Mzk3NDYgQzk2OS4yMDE5MDQsOTYwLjU1NDE5OSA5NjkuMjAxOTA0LDk2Ni45MjU5MDMgOTY5LjIwMTkwNCw5NzMuNzQ5NjM0IEM5NjIuODE2MDQwLDk3My43NDk2MzQgOTU2LjQwNDYwMiw5NzMuNzQ5NjM0IDk0OS4xODUxODEsOTczLjc0OTYzNCBDOTQ5LjE4NTE4MSw5NzcuNzQ0Mzg1IDk0OS4xODg5MDQsOTgxLjMxNTc5NiA5NDkuMTg0Mzg3LDk4NC44ODcyMDcgQzk0OS4xNzU3MjAsOTkxLjcxNDc4MyA5NDkuMTAwNzY5LDk5OC41NDI5MDggOTQ5LjE2NjI2MCwxMDA1LjM2OTc1MSBDOTQ5LjI1MTc3MCwxMDE0LjI3OTY2MyA5NTIuNTQxMDc3LDEwMTcuNDE1ODk0IDk2MS4zODkzNDMsMTAxNy4xMTEwODQgQzk2My42OTYzNTAsMTAxNy4wMzE2NzcgOTY1Ljk5NjcwNCwxMDE2Ljc2MDM3NiA5NjguNzM1OTAxLDEwMTYuNTQyNTQyIEM5NjkuMjAxNTk5LDEwMjEuOTY3MTAyIDk2OS44NTc4NDksMTAyNy4zOTE2MDIgOTY5Ljk4MzgyNiwxMDMyLjgyODI0NyBDOTcwLjAxMTE2OSwxMDM0LjAwODc4OSA5NjguMTczODg5LDEwMzYuMjM5MTM2IDk2Ny4xMzMxMTgsMTAzNi4yNzcxMDAgQzk1OS40MTQ3OTUsMTAzNi41NTg0NzIgOTUxLjQzNjUyMywxMDM3LjYxNTIzNCA5NDQuMDA4NDg0LDEwMzYuMTEyNDI3IEM5MzIuNjQwOTkxLDEwMzMuODEyNjIyIDkyNi4yNTc4MTIsMTAyNC42MTMyODEgOTI1Ljk1NzMzNiwxMDEyLjc3MTI0MCBDOTI1LjczMzQ1OSwxMDAzLjk1MDYyMyA5MjUuODY2Mzk0LDk5NS4xMjA3ODkgOTI1Ljg0Njc0MSw5ODYuMjk1MTA1IEM5MjUuODM4MTk2LDk4Mi40ODg4OTIgOTI1Ljg0NTI3Niw5NzguNjgyNzM5IDkyNS44NDUyNzYsOTc0LjM0MzMyMyBDOTIxLjU2NzAxNyw5NzQuMTIxNTIxIDkxNy42NzUwNDksOTczLjkxOTczOSA5MTMuNDY0MjMzLDk3My43MDE0NzcgQzkxMy40NjQyMzMsOTY3LjI3Mzc0MyA5MTMuNDY0MjMzLDk2MS4wMzIyODggOTEzLjQ2NDIzMyw5NTMuODg5NzcxIEM5MTYuMzc5Mzk1LDk1My44ODk3NzEgOTE5LjI5NzQyNCw5NTMuODg5NzcxIDkyMi42NzQ0MzgsOTUzLjg4MDAwNSB6Ii8+CjxwYXRoIGZpbGw9IiNFMkUyRTAiIGQ9IgpNMzE1LjQ5NzMxNCw5NzEuNzYzNTUwIEMzMTUuNDY5MTc3LDk3MS4xMDIyOTUgMzE1Ljc0MzE2NCw5NzAuMTM4MDYyIDMxNi4wMTcxNTEsOTY5LjE3MzgyOCBDMzE2Ljk0NDE1Myw5NjkuNjAxOTkwIDMxOC4zODUzNzYsOTY5LjgxMTM0MCAzMTguNjgxNzkzLDk3MC41MDc4NzQgQzMxOS4xNjcyNjcsOTcxLjY0ODU2MCAzMTguOTU1MDQ4LDk3My4xMDU5NTcgMzE4Ljk1NjM2MCw5NzQuNDI5ODcxIEMzMTguOTc2MTk2LDk5NC42Nzc4NTYgMzE4Ljk4MjkxMCwxMDE0LjkyNTg0MiAzMTkuMDEzODg1LDEwMzUuNjUwMjY5IEMzMTguNDMzNDQxLDEwMzQuNzg4Njk2IDMxNy4zMTc0NzQsMTAzMy40NTQzNDYgMzE3LjMwNzU1NiwxMDMyLjExMTkzOCBDMzE3LjE2Nzg0NywxMDEzLjEyNjIyMSAzMTcuMTgzMjI4LDk5NC4xMzkzNDMgMzE3LjE0MTQ0OSw5NzUuMTUyNzcxIEMzMTcuMTM4NTgwLDk3My44NDk3MzEgMzE2Ljk4ODk1Myw5NzIuNTQ2MjA0IDMxNi44Nzc1NjMsOTcxLjI0NTQ4MyBDMzE2Ljg2Nzc2Nyw5NzEuMTMwOTIwIDMxNi41NzY1NjksOTcwLjkyMDIyNyAzMTYuNTEzODg1LDk3MC45NTEyOTQgQzMxNi4yNTUyMTksOTcxLjA3OTY1MSAzMTYuMDM0MjcxLDk3MS4yODQxMTkgMzE1LjQ5NzMxNCw5NzEuNzYzNTUwIHoiLz4KPHBhdGggZmlsbD0iI0UyRTJFMCIgZD0iCk0zNDAuODE0NTE0LDk3NC41NjI4NjYgQzM0MC4xNTEwMDEsOTczLjQ3MTgwMiAzMzkuMTI2NDM0LDk3MS45MjYzOTIgMzM5LjEwOTE2MSw5NzAuMzY5NzUxIEMzMzguOTc0OTQ1LDk1OC4yNzg4NzAgMzM5LjAzNTI0OCw5NDYuMTg1NzkxIDMzOS4wMzQ4MjEsOTM0LjA5MzQ0NSBDMzM5LjAzNDU3Niw5MjYuODA3OTIyIDMzOS4wMzE4MzAsOTI2LjgyNTAxMiAzMzEuODUxOTU5LDkyNS44ODAxODggQzMzMS4yNzQ5MDIsOTI1LjgwNDE5OSAzMzAuNzU3NzIxLDkyNS4yNzMzMTUgMzMwLjA5NjcxMCw5MjQuNjAyNzgzIEMzMzMuNDIxNjYxLDkyNC4yNTE3NzAgMzM2Ljg2MjY0MCw5MjQuMjUxNzcwIDM0MC45MjAxMDUsOTI0LjI1MTc3MCBDMzQwLjkyMDEwNSw5NDEuMDA5Mjc3IDM0MC45MjAxMDUsOTU3LjU1NjMzNSAzNDAuODE0NTE0LDk3NC41NjI4NjYgeiIvPgo8cGF0aCBmaWxsPSIjRTJFMkUwIiBkPSIKTTMyMS41ODMzMTMsOTI0LjE1MjI4MyBDMzIxLjYzMzU3NSw5MjQuNzU4NjA2IDMyMS4xOTIyMDAsOTI1LjcyMDA5MyAzMjAuODY5MDgwLDkyNS42ODE4ODUgQzMxMy4xMTU5NjcsOTI0Ljc2NDk1NCAzMTEuNDE2MzIxLDkzMC42ODQ2MzEgMzA5LjA5MjI4NSw5MzUuOTQ1MTkwIEMzMDguNzgxMzcyLDkzNi42NDg4NjUgMzA4LjIwMTI5NCw5MzcuMjMzNzA0IDMwNy40MDY1NTUsOTM3Ljk0ODQ4NiBDMzA4Ljc3NzQ2Niw5MzMuOTYwMDgzIDMwOS44MDI4NTYsOTI5LjM0MTY3NSAzMTIuNDY4MzUzLDkyNi4wNTIzNjggQzMxMy45NDI4MTAsOTI0LjIzMjc4OCAzMTguMTYzODQ5LDkyNC42Mzg5MTYgMzIxLjU4MzMxMyw5MjQuMTUyMjgzIHoiLz4KPHBhdGggZmlsbD0iI0UyRTJFMCIgZD0iCk0zNDAuODUxODY4LDk5OC41NjE3NjggQzM0MC4zMjE0NzIsOTk4Ljc3NDQxNCAzMzkuNTI1NjY1LDk5OC41MjE5MTIgMzM5LjUyOTcyNCw5OTguMjgyODk4IEMzMzkuNjMxMzc4LDk5Mi4yNzA1MDggMzM5LjgxNzIwMCw5ODYuMjU5NDYwIDM0MC4zNTE3NzYsOTgwLjExMzY0NyBDMzQwLjc5NjYzMSw5ODYuMDIwMzg2IDM0MC44Nzc4OTksOTkyLjA2MTY0NiAzNDAuODUxODY4LDk5OC41NjE3NjggeiIvPgo8cGF0aCBmaWxsPSIjRTJFMkUwIiBkPSIKTTM0MC44NjE4MTYsMTAxOS41NjM5NjUgQzMzNy42NDcwMzQsMTAxNS4yMzYzODkgMzM4LjgyNjkzNSwxMDEwLjIzOTMxOSAzNDAuMzc5MzY0LDEwMDUuMTEwNTM1IEMzNDAuODIwODAxLDEwMDkuNjg4ODQzIDM0MC44OTY5MTIsMTAxNC4zOTgzNzYgMzQwLjg2MTgxNiwxMDE5LjU2Mzk2NSB6Ii8+CjxwYXRoIGZpbGw9IiNFMkUyRTAiIGQ9IgpNMzM4LjI0NTkxMSwxMDM2LjMxMTc2OCBDMzM4LjY2MTE2MywxMDM0LjgyOTU5MCAzMzkuMzc5NjA4LDEwMzMuNDg2MjA2IDM0MC40MTQxMjQsMTAzMi4wNjEyNzkgQzM0MC41ODA2NTgsMTAzMy43NTE4MzEgMzQyLjUxNTEwNiwxMDM2LjU0MDUyNyAzMzguMjQ1OTExLDEwMzYuMzExNzY4IHoiLz4KPC9zdmc+Cg==" alt="MotoRoute" width="132" height="132" />
+      <p class="eyebrow">Pianificatore di itinerari in moto</p>
+      <h1>Smart <em>Route</em>,<br />better rides</h1>
+      <p class="lede">
+        Scrivi <b>«un anello di 200 km verso le montagne»</b> e ottieni un percorso vero:
+        strade tortuose, superstrade evitate, tappe che esistono davvero.
+        Nato come strumento personale, costruito per costare zero.
+      </p>
+      <dl class="specs">
+        <div><dd>€0</dd><dt>costo di esercizio</dt></div>
+        <div><dd>8</dd><dt>servizi orchestrati</dt></div>
+        <div><dd>2</dd><dt>chiavi, mai sul telefono</dt></div>
+      </dl>
+    </div>
+  </header>
+
+  <main class="route">
+   <div class="route-inner">
+    <div class="spine" aria-hidden="true"><div class="spine-fill" id="fill"></div></div>
+
+    <section class="stop" data-state="idle">
+      <span class="stop-label" aria-hidden="true">A</span>
+      <div class="stop-head">
+        <p class="eyebrow">Partenza</p>
+        <h2>Il problema era la domanda sbagliata</h2>
+      </div>
+      <p>
+        Le app di navigazione sanno rispondere a «portami in via Roma 12». Nessuna sa
+        rispondere a <em>«portami a fare un bel giro»</em> — che è l'unica domanda che
+        conta quando tiri fuori la moto di domenica mattina.
+      </p>
+      <p>
+        Calimoto e Kurviger fanno bene questo mestiere, ma a pagamento e con la loro idea di
+        percorso. MotoRoute nasce da un'esigenza più stretta: uno strumento personale, che
+        parli la mia lingua, che non chieda un abbonamento e che si installi sul telefono
+        come un'app qualsiasi.
+      </p>
+    </section>
+
+    <section class="stop" data-state="idle">
+      <span class="stop-label" aria-hidden="true">1</span>
+      <div class="stop-head">
+        <p class="eyebrow">La lezione fondativa</p>
+        <h2>L'IA inventava le strade</h2>
+      </div>
+      <p>
+        La prima versione era un unico file HTML che chiedeva a un modello linguistico di
+        progettare il giro. Il risultato sembrava perfetto: paesi suggestivi, valichi
+        panoramici, chilometraggi credibili. Peccato che metà di quei posti, sulla mappa,
+        non esistesse. Il modello raccontava benissimo strade che non erano mai state
+        asfaltate.
+      </p>
+      <div class="pull">
+        Da lì la regola che regge tutta l'app:
+        <strong>l'IA propone, i dati reali decidono.</strong>
+        Nessun luogo entra in un percorso se prima non lo si trova davvero sulla mappa.
+      </div>
+      <p>
+        È una differenza sottile e decisiva. L'intelligenza artificiale qui non disegna
+        itinerari: interpreta il desiderio e propone candidati. Poi ogni candidato passa
+        per una verifica su OpenStreetMap, e chi non supera il controllo viene scartato in
+        silenzio. Quello che resta è guidabile.
+      </p>
+    </section>
+
+    <section class="stop" data-state="idle">
+      <span class="stop-label" aria-hidden="true">2</span>
+      <div class="stop-head">
+        <p class="eyebrow">Dalla frase al tracciato</p>
+        <h2>Cinque passaggi, in ordine</h2>
+      </div>
+      <p>
+        Quando scrivi «giro della Val d'Orcia» l'app non ti porta semplicemente in Val
+        d'Orcia: costruisce un anello tematico coerente con l'idea. Ecco cosa succede nei
+        pochi secondi dopo l'invio.
+      </p>
+      <ol class="steps">
+        <li>
+          <div>
+            <h3>Comprensione</h3>
+            <p>Il modello estrae dalla frase la forma del giro: anello o punto-a-punto,
+               distanza, direzione, temi, luoghi obbligati e tappe iconiche da suggerire.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Validazione</h3>
+            <p>Ogni nome proposto viene geocodificato. Se non corrisponde a un posto reale,
+               è fuori. È il filtro che ha risolto il problema delle strade inventate.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Arricchimento</h3>
+            <p>Per i temi — curve, panorami, borghi, valichi — i candidati arrivano da
+               OpenStreetMap, così i nomi sono quelli veri e le coordinate pure.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Tracciamento</h3>
+            <p>Le tappe diventano un percorso calcolato da un motore di routing, con un
+               profilo che preferisce le strade tranquille e le curve.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Racconto</h3>
+            <p>Il modello scrive due o tre righe su cosa aspettarsi, con un consiglio
+               pratico. Accanto compare il meteo previsto lungo il tragitto.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="stop" data-state="idle">
+      <span class="stop-label" aria-hidden="true">3</span>
+      <div class="stop-head">
+        <p class="eyebrow">Cosa sa fare</p>
+        <h2>Il resto dell'attrezzatura</h2>
+      </div>
+      <p>
+        Attorno al motore tematico c'è tutto quello che serve perché il giro esca di casa:
+        modifica a mano, esportazione, navigazione vera.
+      </p>
+      <div class="feats">
+        <div class="feat">
+          <h3>Evita le superstrade</h3>
+          <p>Non solo le autostrade: anche le trunk italiane, quelle che rovinano un giro
+             senza essere formalmente autostrada.</p>
+        </div>
+        <div class="feat">
+          <h3>Anelli</h3>
+          <p>Partenza e arrivo coincidenti, con distanza e direzione a scelta. Oppure
+             «sorprendimi» e decide lui.</p>
+        </div>
+        <div class="feat">
+          <h3>Correzione a mano</h3>
+          <p>Tocca la mappa per aggiungere una tappa, trascina i punti, riordina o togli.
+             Il percorso si ricalcola da solo.</p>
+        </div>
+        <div class="feat">
+          <h3>Meteo del giro</h3>
+          <p>Previsioni a partenza, metà e arrivo — perché su due ruote il meteo a metà
+             strada conta più di quello a casa.</p>
+        </div>
+        <div class="feat">
+          <h3>Punti di interesse</h3>
+          <p>Panorami, valichi e benzinai reali sovrapposti alla mappa, presi da
+             OpenStreetMap.</p>
+        </div>
+        <div class="feat">
+          <h3>Navigazione vera</h3>
+          <p>Apertura in Google Maps con le tappe e l'opzione «evita autostrade», oppure
+             GPX per OsmAnd e navigatori dedicati.</p>
+        </div>
+        <div class="feat">
+          <h3>Partenze salvate</h3>
+          <p>Le tue basi abituali, con una preferita che viene caricata da sola
+             all'apertura.</p>
+        </div>
+        <div class="feat">
+          <h3>Installabile</h3>
+          <p>È una PWA: dal browser va sulla home del telefono e si comporta come
+             un'app nativa.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="stop" data-state="idle">
+      <span class="stop-label" aria-hidden="true">4</span>
+      <div class="stop-head">
+        <p class="eyebrow">Come è fatta</p>
+        <h2>Tre strati e un guardiano</h2>
+      </div>
+      <p>
+        L'architettura risolve un vincolo preciso: alcune API richiedono una chiave, ma
+        l'app gira su telefoni e il codice è pubblico. La soluzione è un proxy che fa da
+        guardiano — le chiavi vivono solo lì dentro.
+      </p>
+      <div class="arch">
+        <div class="tier">
+          <p class="eyebrow">Client — il telefono</p>
+          <p>PWA statica servita da Cloudflare Pages. Parla direttamente con i servizi che
+             non chiedono credenziali.</p>
+          <div class="chips">
+            <span class="chip">TypeScript</span>
+            <span class="chip">Vite</span>
+            <span class="chip">MapLibre GL</span>
+            <span class="chip">IndexedDB</span>
+          </div>
+        </div>
+        <div class="tier">
+          <p class="eyebrow">Worker — il guardiano delle chiavi</p>
+          <p>Un Cloudflare Worker inoltra le chiamate che richiedono un segreto, aggiungendo
+             la chiave lato server. Nessun dispositivo la vede mai, e il repository può
+             restare aperto.</p>
+          <div class="chips">
+            <span class="chip" data-key>Gemini</span>
+            <span class="chip" data-key>OpenRouteService</span>
+            <span class="chip">Nominatim</span>
+          </div>
+        </div>
+        <div class="tier">
+          <p class="eyebrow">Servizi aperti — senza chiave</p>
+          <p>Tutto il resto è raggiungibile in chiaro: mappa, routing tortuoso, dati
+             geografici, meteo. È la ragione per cui il conto mensile resta a zero.</p>
+          <div class="chips">
+            <span class="chip">OpenFreeMap</span>
+            <span class="chip">BRouter</span>
+            <span class="chip">Overpass</span>
+            <span class="chip">Open-Meteo</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stop" data-state="idle">
+      <span class="stop-label" aria-hidden="true">5</span>
+      <div class="stop-head">
+        <p class="eyebrow">Appendice</p>
+        <h2>Cosa alimenta cosa</h2>
+      </div>
+      <p>
+        Ogni funzionalità dell'app e il servizio che la rende possibile, senza scatole nere.
+      </p>
+
+      <div class="table-scroll">
+        <table>
+          <caption>Interfaccia e base</caption>
+          <thead>
+            <tr><th scope="col">Funzionalità</th><th scope="col">Tecnologia</th><th scope="col">Note</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>App e build</td><td>Vite + TypeScript</td><td>PWA installabile</td></tr>
+            <tr><td>Mappa interattiva</td><td>MapLibre GL JS</td><td>rendering vettoriale</td></tr>
+            <tr><td>Tile della mappa</td><td>OpenFreeMap · Liberty</td><td>senza chiave</td></tr>
+            <tr><td>Hosting</td><td>Cloudflare Pages</td><td>piano gratuito</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <caption>Intelligenza artificiale</caption>
+          <thead>
+            <tr><th scope="col">Funzionalità</th><th scope="col">Tecnologia</th><th scope="col">Note</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Lettura della richiesta</td><td>Google Gemini</td><td>output strutturato via schema</td></tr>
+            <tr><td>Scelta delle tappe tematiche</td><td>Google Gemini</td><td>sceglie tra candidati reali</td></tr>
+            <tr><td>Descrizione con consigli</td><td>Google Gemini</td><td>2-3 frasi più un consiglio</td></tr>
+            <tr><td>Custodia delle chiavi</td><td>Cloudflare Worker</td><td>segreti lato server</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <caption>Routing e dati geografici</caption>
+          <thead>
+            <tr><th scope="col">Funzionalità</th><th scope="col">Tecnologia</th><th scope="col">Note</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Percorso tortuoso, niente superstrade</td><td>BRouter + profilo dedicato</td><td>senza chiave</td></tr>
+            <tr><td>Routing alternativo di riserva</td><td>OpenRouteService</td><td>via Worker</td></tr>
+            <tr><td>Da nome a coordinate, e viceversa</td><td>Nominatim · OpenStreetMap</td><td>via Worker, con cache</td></tr>
+            <tr><td>Punti di interesse e candidati</td><td>Overpass · OpenStreetMap</td><td>con mirror di riserva</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <caption>Contesto e navigazione</caption>
+          <thead>
+            <tr><th scope="col">Funzionalità</th><th scope="col">Tecnologia</th><th scope="col">Note</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Meteo lungo il giro</td><td>Open-Meteo</td><td>senza chiave</td></tr>
+            <tr><td>Apertura in Maps con tappe</td><td>URL Google Maps</td><td>evita autostrade e pedaggi</td></tr>
+            <tr><td>Navigazione esatta</td><td>GPX + Web Share API</td><td>per OsmAnd e navigatori</td></tr>
+            <tr><td>Percorsi e partenze salvate</td><td>IndexedDB · localStorage</td><td>solo sul dispositivo</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="stop" data-state="idle">
+      <span class="stop-label" aria-hidden="true">B</span>
+      <div class="stop-head">
+        <p class="eyebrow">Arrivo</p>
+        <h2>Zero euro, zero account</h2>
+      </div>
+      <p>
+        Ogni servizio scelto è gratuito o utilizzabile senza credenziali; le due chiavi che
+        servono davvero stanno nel piano gratuito di Cloudflare. Non c'è registrazione, non
+        c'è profilazione: percorsi, preferiti e partenze restano nella memoria del telefono
+        e non vanno da nessuna parte.
+      </p>
+      <p>
+        MotoRoute resta quello che era all'inizio — uno strumento personale, costruito per
+        rispondere bene a una domanda sola. Il resto è solo asfalto.
+      </p>
+    </section>
+   </div>
+  </main>
+
+  <footer class="end">
+    <div class="end-inner">
+      <span class="sig">Moto<span>Route</span></span>
+      <p>Smart Route, better rides — fatto per andare a fare bei giri.</p>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- hero: un tracciato che si disegna, come sulla mappa ---------- */
+  var cv = document.getElementById('trace');
+  if (cv && cv.getContext) {
+    var ctx = cv.getContext('2d');
+    var W = 0, H = 0, pts = [], contours = [], raf = 0, t0 = 0;
+
+    function rng(seed) {
+      return function () {
+        seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+        var x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+        return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function build() {
+      var r = rng(20260730);
+      pts = [];
+      var n = 15;
+      for (var i = 0; i <= n; i++) {
+        var p = i / n;
+        pts.push({
+          x: -0.06 * W + p * W * 1.12,
+          y: H * (0.30 + 0.42 * Math.sin(p * 5.1 + 0.7) * (0.45 + 0.5 * r()))
+              + H * 0.14 * Math.sin(p * 11.3)
+        });
+      }
+      contours = [];
+      var cr = rng(7761);
+      for (var c = 0; c < 7; c++) {
+        var line = [], base = H * (0.1 + c * 0.13), amp = H * (0.05 + 0.05 * cr());
+        var ph = cr() * 6.28, fr = 1.6 + cr() * 2.2;
+        for (var j = 0; j <= 40; j++) {
+          var q = j / 40;
+          line.push({ x: q * W, y: base + Math.sin(q * fr * 3.14 + ph) * amp });
+        }
+        contours.push(line);
+      }
+    }
+
+    function stroke(list, upto) {
+      ctx.beginPath();
+      var last = Math.max(1, Math.floor(list.length * upto));
+      ctx.moveTo(list[0].x, list[0].y);
+      for (var i = 1; i < last; i++) {
+        var prev = list[i - 1], cur = list[i];
+        ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + cur.x) / 2, (prev.y + cur.y) / 2);
+      }
+      ctx.stroke();
+    }
+
+    function paint(prog) {
+      ctx.clearRect(0, 0, W, H);
+
+      /* curve di livello, appena percettibili */
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(239,159,39,0.085)';
+      for (var c = 0; c < contours.length; c++) stroke(contours[c], 1);
+
+      /* la guaina scura e sopra l'ambra: le stesse due passate dell'app */
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(26,13,0,0.85)';
+      ctx.lineWidth = 13;
+      stroke(pts, prog);
+      ctx.strokeStyle = '#EF9F27';
+      ctx.lineWidth = 5;
+      stroke(pts, prog);
+
+      /* le tappe compaiono quando il tracciato le raggiunge */
+      var marks = [3, 7, 11];
+      for (var m = 0; m < marks.length; m++) {
+        var idx = marks[m];
+        if (prog < idx / pts.length) continue;
+        var p = pts[idx];
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 7, 0, 6.2832);
+        ctx.fillStyle = '#100F0E';
+        ctx.fill();
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = '#EF9F27';
+        ctx.stroke();
+      }
+    }
+
+    function resize() {
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var rect = cv.getBoundingClientRect();
+      W = rect.width; H = rect.height;
+      if (!W || !H) return;
+      cv.width = Math.round(W * dpr);
+      cv.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      build();
+      if (reduce) paint(1);
+    }
+
+    function frame(ts) {
+      if (!t0) t0 = ts;
+      var e = Math.min((ts - t0) / 2200, 1);
+      var eased = 1 - Math.pow(1 - e, 3);
+      paint(eased);
+      if (e < 1) raf = requestAnimationFrame(frame);
+    }
+
+    resize();
+    window.addEventListener('resize', function () {
+      cancelAnimationFrame(raf); t0 = 0; resize();
+      if (!reduce) raf = requestAnimationFrame(frame);
+    });
+    if (!reduce) raf = requestAnimationFrame(frame);
+  }
+
+  /* ---------- la linea si riempie mentre scorri, come un giro percorso ---------- */
+  var fill = document.getElementById('fill');
+  var route = document.querySelector('.route');
+  var stops = Array.prototype.slice.call(document.querySelectorAll('.stop'));
+
+  function onScroll() {
+    if (!fill || !route) return;
+    var r = route.getBoundingClientRect();
+    var vh = window.innerHeight;
+    var done = Math.min(Math.max((vh * 0.55 - r.top) / r.height, 0), 1);
+    fill.style.height = (done * 100) + '%';
+  }
+
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) en.target.setAttribute('data-state', 'live');
+      });
+    }, { rootMargin: '0px 0px -45% 0px' });
+    stops.forEach(function (s) { io.observe(s); });
+  } else {
+    stops.forEach(function (s) { s.setAttribute('data-state', 'live'); });
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  onScroll();
+})();
+</script>
+</body>
+</html>
