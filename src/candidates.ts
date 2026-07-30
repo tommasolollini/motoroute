@@ -13,7 +13,35 @@ export interface Candidate {
   dir: string;
 }
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+// overpass-api.de is often slow/overloaded; try mirrors in turn.
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
+
+/** POST an Overpass query, trying each mirror until one succeeds. */
+async function overpassQuery(body: string): Promise<{ elements?: { lat?: number; lon?: number; tags?: Record<string, string> }[] }> {
+  let lastErr: unknown;
+  for (const url of OVERPASS_MIRRORS) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 20000);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(body)}`,
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      if (res.ok) return await res.json();
+      lastErr = new Error(`Overpass ${res.status}`);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('Overpass non raggiungibile');
+}
 
 /** Overpass filters per theme (only named nodes, so the AI gets real names). */
 function filtersFor(themes: string[]): string[] {
@@ -68,16 +96,7 @@ export async function fetchCandidates(
   const bbox = `(${(centre.lat - halfDeg).toFixed(4)},${(centre.lng - halfDeg).toFixed(4)},${(centre.lat + halfDeg).toFixed(4)},${(centre.lng + halfDeg).toFixed(4)})`;
   const body = `[out:json][timeout:25];(${filtersFor(themes).map((f) => f + bbox + ';').join('')});out body 120;`;
 
-  const res = await fetch(OVERPASS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `data=${encodeURIComponent(body)}`,
-  });
-  if (!res.ok) throw new Error(`Overpass ${res.status}`);
-
-  const data = (await res.json()) as {
-    elements?: { lat?: number; lon?: number; tags?: Record<string, string> }[];
-  };
+  const data = await overpassQuery(body);
 
   const out: Candidate[] = [];
   const seen = new Set<string>();

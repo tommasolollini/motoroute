@@ -16,6 +16,7 @@ import { fetchPois } from './overpass';
 import { PoiLayer } from './poi-layer';
 import { parseRideRequest, hasAi, geocodePlace, curateStops, type GeocodedPlace } from './ai';
 import { fetchCandidates } from './candidates';
+import { rideWeather } from './weather';
 import { generateLoopVia } from './loop';
 import { saveRoute, allRoutes, deleteRoute, type SavedRoute } from './storage';
 import type { Feature, LineString } from 'geojson';
@@ -47,6 +48,8 @@ const navRow = document.getElementById('nav-row') as HTMLDivElement;
 const btnMaps = document.getElementById('btn-maps') as HTMLButtonElement;
 const regenRow = document.getElementById('regen-row') as HTMLDivElement;
 const btnRegen = document.getElementById('btn-regen') as HTMLButtonElement;
+const btnMeteo = document.getElementById('btn-meteo') as HTMLButtonElement;
+const weatherLine = document.getElementById('weather-line') as HTMLParagraphElement;
 const btnGpx = document.getElementById('btn-gpx') as HTMLButtonElement;
 const btnNavigate = document.getElementById('btn-navigate') as HTMLButtonElement;
 const btnClear = document.getElementById('btn-clear') as HTMLButtonElement;
@@ -265,6 +268,7 @@ function showRoute(result: RouteResult): void {
   exportRow.hidden = false;
   navRow.hidden = false;
   regenRow.hidden = false;
+  weatherLine.hidden = true; // stale for the new route until requested again
   if (sheetCollapsed) setSheetCollapsed(true); // body grew: recompute offset + peek
 }
 
@@ -275,6 +279,7 @@ function hideRouteUi(): void {
   exportRow.hidden = true;
   navRow.hidden = true;
   regenRow.hidden = true;
+  weatherLine.hidden = true;
 }
 
 async function recompute(alt = 0): Promise<void> {
@@ -318,6 +323,25 @@ async function doRegen(): Promise<void> {
   btnRegen.textContent = label;
 }
 btnRegen.addEventListener('click', () => void doRegen());
+
+btnMeteo.addEventListener('click', async () => {
+  if (!currentRoute) return;
+  btnMeteo.disabled = true;
+  btnMeteo.textContent = '⏳ Meteo';
+  try {
+    const w = await rideWeather(currentRoute.feature.geometry.coordinates);
+    const parts = w.points.map((p) => `<b>${p.label}</b> ${p.emoji} ${p.temp}°`).join(' · ');
+    weatherLine.innerHTML = parts + (w.rain ? '<span class="weather-rain">🌧️ possibile pioggia sul percorso</span>' : '');
+    weatherLine.classList.toggle('rain', w.rain);
+    weatherLine.hidden = false;
+    if (sheetCollapsed) setSheetCollapsed(true);
+  } catch {
+    toast('Meteo non disponibile');
+  } finally {
+    btnMeteo.disabled = false;
+    btnMeteo.textContent = '🌤 Meteo';
+  }
+});
 
 // Map tap: manual = append a stop; anello = set the single start point.
 map.on('click', (e) => {
@@ -668,6 +692,7 @@ aiBar.addEventListener('submit', async (e) => {
     // Thematic ride: let the AI curate REAL OSM candidates into the loop.
     if (req.mode === 'anello' && (req.themes?.length ?? 0) > 0) {
       try {
+        aiSummary.textContent = `${req.summary} — l'IA sta scegliendo le tappe…`;
         const bearing = dir === 'rand' ? undefined : COMPASS[dir];
         const cands = await fetchCandidates(start, km / 3.1, req.themes ?? [], bearing);
         if (cands.length >= 3) {
