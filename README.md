@@ -108,6 +108,7 @@ Quali servizi/tecnologie alimentano ogni pezzo dell'app.
 | Funzionalità | Tecnologia / API | Note |
 |---|---|---|
 | Parsing richiesta in linguaggio naturale | **Google Gemini** (`gemini-flash-latest`) | Structured output via `responseSchema` |
+| Continuità quando la quota si esaurisce | **Gemini** — ripiego automatico sui modelli successivi | flash → flash-lite → 2.0-flash → 2.0-flash-lite |
 | Scelta tappe tematiche + spiegazione | **Google Gemini** | Sceglie tra candidati **reali** |
 | Descrizione del giro con consigli | **Google Gemini** | 2-3 frasi + consiglio pratico |
 | Proxy sicuro delle chiavi | **Cloudflare Worker** | Custodisce `GEMINI_API_KEY` e `ORS_API_KEY` |
