@@ -152,6 +152,10 @@ html, body {
   overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1 1 auto;
   overscroll-behavior: contain;
 }
+/* Il pannello è una colonna flex che scorre: senza questo, quando il contenuto
+   supera l'altezza il browser COMPRIME le righe invece di far scorrere, e i
+   riquadri con overflow nascosto (i tasti Manuale/Anello) si vedono tagliati. */
+.sheet-body > * { flex-shrink: 0; }
 .sheet-grip { flex: none; }
 .hint { font-size: 14px; color: var(--text2); line-height: 1.5; text-align: center; padding: 6px 0 10px; }
 
@@ -205,6 +209,11 @@ html, body {
   color: #0f0f0f; font-size: 13px; font-weight: 800; line-height: 1;
 }
 .wp-marker:active { cursor: grabbing; }
+/* Anello: partenza e arrivo coincidono, una sola pastiglia li mostra entrambi. */
+.wp-marker--ab {
+  width: 42px; border-radius: 13px; font-size: 11px; letter-spacing: 0.01em;
+  background: linear-gradient(100deg, var(--green) 0 48%, var(--amber) 52% 100%);
+}
 
 /* WAYPOINT LIST */
 .wp-list { display: flex; flex-direction: column; gap: 8px; }

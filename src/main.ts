@@ -1082,6 +1082,13 @@ btnClear.addEventListener('click', () => {
   aiInput.value = '';
   aiSummary.textContent = '';
   aiSummary.hidden = true;
+  // La partenza preferita è una scelta stabile, non parte del giro: "Pulisci"
+  // svuota il percorso ma la rimette al suo posto, come all'apertura dell'app.
+  const fav = getFavoriteStart();
+  if (fav) {
+    seedName(fav.lng, fav.lat, fav.name);
+    waypoints.add([fav.lng, fav.lat]);
+  }
 });
 
 map.on('load', () => {

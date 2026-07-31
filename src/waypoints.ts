@@ -82,13 +82,29 @@ export class Waypoints {
     return this.stops.map((s) => s.lngLat);
   }
 
+  /** Vero quando il giro è chiuso: partenza e arrivo sono lo stesso punto. */
+  private loopClosed = false;
+
   /** Label + colour by position: A (start), numbers (via), B (end). */
   private relabel(): void {
     const last = this.stops.length - 1;
+    const first = this.stops[0];
+    const end = this.stops[last];
+
+    // In un anello A e B stanno sulla stessa coordinata: due pastiglie sovrapposte
+    // e B copre A del tutto. Si mostra una sola pastiglia "A·B" bicolore nel punto
+    // giusto — spostarne una la metterebbe dove la tappa non è.
+    this.loopClosed =
+      this.stops.length >= 3 &&
+      Math.abs(first.lngLat.lng - end.lngLat.lng) < 3e-4 &&
+      Math.abs(first.lngLat.lat - end.lngLat.lat) < 3e-4;
+
     this.stops.forEach((s, i) => {
       const el = s.marker.getElement();
+      el.classList.toggle('wp-marker--ab', this.loopClosed && i === 0);
+      el.style.display = this.loopClosed && i === last ? 'none' : '';
       if (i === 0) {
-        el.textContent = 'A';
+        el.textContent = this.loopClosed ? 'A·B' : 'A';
         el.style.setProperty('--wp', GREEN);
       } else if (i === last) {
         el.textContent = 'B';
@@ -108,8 +124,17 @@ export class Waypoints {
       .addTo(this.map);
 
     marker.on('dragend', () => {
-      const stop = this.stops.find((s) => s.id === id);
-      if (stop) stop.lngLat = marker.getLngLat();
+      const idx = this.stops.findIndex((s) => s.id === id);
+      if (idx === -1) return;
+      const at = marker.getLngLat();
+      this.stops[idx].lngLat = at;
+      // Anello con la pastiglia unica "A·B": trascinandola si sposta anche
+      // l'arrivo, altrimenti il giro si aprirebbe senza che si veda perché.
+      if (this.loopClosed && idx === 0) {
+        const end = this.stops[this.stops.length - 1];
+        end.lngLat = at;
+        end.marker.setLngLat(at);
+      }
       this.onChange('drag');
     });
 
