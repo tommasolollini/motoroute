@@ -140,8 +140,18 @@ html, body {
 
 /* MAP */
 #map { flex: 1; width: 100%; height: 100%; }
-.maplibregl-ctrl-group { background: var(--bg2) !important; border: 0.5px solid var(--border) !important; }
+/* Il tasto "la mia posizione" prende l'aspetto del tasto menu: stessa misura,
+   stesso raggio, stesso fondo sfocato — così i due si incolonnano davvero. */
+.maplibregl-ctrl-group {
+  background: rgba(26, 26, 26, 0.7) !important;
+  backdrop-filter: blur(6px);
+  border: 0.5px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
 .maplibregl-ctrl-group button + button { border-top: 0.5px solid var(--border) !important; }
+.maplibregl-ctrl-group button { border-radius: var(--radius-sm) !important; }
 /* Zoom +/- nascosti: sul telefono si zooma con le dita e rubavano spazio.
    Il tasto "la mia posizione" resta, perché il gesto equivalente non esiste. */
 .maplibregl-ctrl-zoom-in, .maplibregl-ctrl-zoom-out { display: none !important; }
@@ -151,6 +161,9 @@ html, body {
    valore fisso — su iPhone la barra cresce col notch e i controlli finivano
    sotto le icone. --topbar-h è misurata da main.ts. */
 .maplibregl-ctrl-top-right { margin-top: calc(var(--topbar-h, 62px) + 8px); }
+/* Incolonnato col tasto menu: MapLibre usa 10px di margine, la barra 1rem,
+   e i due tasti risultavano sfalsati di 5px. */
+.maplibregl-ctrl-top-right .maplibregl-ctrl { margin-right: calc(1rem - 1px); }
 
 /* POI TOGGLE + MARKERS */
 .icon-btn[aria-pressed="true"] { background: var(--amber); border-color: var(--amber); color: #1a0d00; }
