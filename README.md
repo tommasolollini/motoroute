@@ -28,6 +28,8 @@ MotoRoute nasce per rispondere a una domanda semplice: *"portami a fare un bel g
 |---|---|
 | 🗣️ **IA che crea itinerari** | Scrivi in linguaggio naturale (*"anello di 200 km verso le montagne"*, *"giro della Val d'Orcia"*, *"anello che passa per Castelluccio di Norcia"*) e l'IA non ti porta solo lì: costruisce un **percorso tematico** coerente con la richiesta, scegliendo tappe iconiche reali. |
 | 🛣️ **Routing tortuoso** | Un profilo di routing dedicato privilegia strade tranquille e curve, **evitando autostrade e superstrade** (non solo le autostrade — anche le trunk/superstrade italiane). |
+| 🎚️ **Livello di curve** | Tre livelli reali — *Diretto / Medio / Tortuoso* — che cambiano davvero il percorso. Misurato su cinque tracciati di prova: "Tortuoso" è più curvo di "Diretto" in 5 casi su 5, in media **+52%** di gradi di curva per km. |
+| ⛰️ **Profilo altimetrico** | Grafico delle quote lungo il giro con salita, discesa e quote minima/massima. Il dislivello usa un filtro anti-rumore, così non gonfia il totale. |
 | 🔁 **Anelli** | Genera un anello a partenza = arrivo, con distanza e direzione a scelta, oppure *"sorprendimi"*. |
 | ✏️ **Modifica manuale** | Tocca la mappa per aggiungere tappe, trascina i punti per correggere, riordina o rimuovi le tappe. |
 | 📝 **Descrizione con consigli** | L'IA genera una breve descrizione del giro con un **consiglio pratico**. |
@@ -113,6 +115,8 @@ Quali servizi/tecnologie alimentano ogni pezzo dell'app.
 | Funzionalità | Tecnologia / API | Note |
 |---|---|---|
 | Routing tortuoso / evita autostrade+superstrade | **BRouter** + profilo "strade tranquille" personalizzato | Pubblico, **keyless** |
+| Livello di curvosità (3 livelli) | **BRouter** — tre varianti del profilo (`costfactor` + `turncost`) | Valori tarati su misure reali |
+| Profilo altimetrico e dislivello | Coordinate 3D di **BRouter** / **ORS** (`elevation: true`) | Nessuna chiamata aggiuntiva |
 | Routing con *avoid* nativo (fallback) | **OpenRouteService** (via Worker) | Chiave gratuita nel Worker |
 | Geocoding (nome → coordinate) e reverse | **Nominatim / OpenStreetMap** (via Worker) | Con cache edge e User-Agent |
 | POI (panorami, valichi, benzinai) e candidati tematici | **Overpass API / OpenStreetMap** | Con **mirror** di fallback |
