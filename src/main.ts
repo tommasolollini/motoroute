@@ -11,6 +11,7 @@ import { generateLoop } from './loop';
 import { COMPASS, lineDistanceKm, sampleAlongTrack, bearingBetween } from './geo';
 import { getQuietProfileId, type Curviness } from './quiet-profile';
 import { elevationProfile, profileSvg, curvinessDegPerKm, curvinessLabel } from './elevation';
+import { busy } from './busy';
 import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart, getFavoriteStartId, setFavoriteStart, getFavoriteStart } from './starts';
 import { fetchPois } from './overpass';
@@ -356,6 +357,7 @@ async function recompute(alt = 0): Promise<void> {
   }
   const token = ++routeToken;
   errBox.hidden = true;
+  const task = busy('Calcolo il percorso…');
   try {
     const route = await runRoute(waypoints.points, alt);
     if (token !== routeToken) return;
@@ -365,6 +367,8 @@ async function recompute(alt = 0): Promise<void> {
     hideRouteUi();
     errBox.textContent = e instanceof Error ? e.message : 'Errore nel calcolo del percorso';
     errBox.hidden = false;
+  } finally {
+    task.done();
   }
 }
 
@@ -450,12 +454,16 @@ async function doRegen(): Promise<void> {
   if (lastAiLoop) {
     const label = btnRegen.textContent;
     btnRegen.disabled = true;
+    fabRegen.classList.add('is-busy');
     btnRegen.textContent = 'Ricalcolo…';
+    const task = busy('Cerco un giro diverso…');
     try {
       await regenAiLoop(lastAiLoop);
     } catch {
       toast('Non riesco a rifare diversamente questo giro');
     } finally {
+      task.done();
+      fabRegen.classList.remove('is-busy');
       btnRegen.disabled = false;
       btnRegen.textContent = label;
     }
@@ -468,9 +476,11 @@ async function doRegen(): Promise<void> {
   }
   regenAlt += 1;
   btnRegen.disabled = true;
+  fabRegen.classList.add('is-busy');
   const label = btnRegen.textContent;
   btnRegen.textContent = 'Ricalcolo…';
   await recompute(regenAlt);
+  fabRegen.classList.remove('is-busy');
   btnRegen.disabled = false;
   btnRegen.textContent = label;
 }
@@ -527,6 +537,7 @@ async function doGenerate(
   btnAnelloGen.textContent = 'Generando…';
   errBox.hidden = true;
   const token = ++routeToken;
+  const task = busy(`Genero l'anello di ${Math.round(targetKm)} km…`);
   try {
     const loop = await generateLoop(start, targetKm, bearing, runRoute);
     if (token !== routeToken) return;
@@ -543,6 +554,7 @@ async function doGenerate(
     errBox.textContent = e instanceof Error ? e.message : 'Impossibile generare l’anello';
     errBox.hidden = false;
   } finally {
+    task.done();
     btnAnelloGen.disabled = false;
     btnAnelloSurprise.disabled = false;
     btnAnelloGen.textContent = '🔁 Genera anello';
@@ -660,6 +672,7 @@ gpxInput.addEventListener('change', async () => {
   const file = gpxInput.files?.[0];
   gpxInput.value = '';
   if (!file) return;
+  const task = busy('Importo il tracciato…');
   try {
     const parsed = parseGpx(await file.text());
     const km = lineDistanceKm(parsed.geometry);
@@ -667,6 +680,8 @@ gpxInput.addEventListener('change', async () => {
     toast(`GPX importato · ${km.toFixed(0)} km`);
   } catch (e) {
     toast(e instanceof Error ? e.message : 'GPX non valido');
+  } finally {
+    task.done();
   }
 });
 
@@ -765,12 +780,14 @@ async function refreshPois(): Promise<void> {
     return;
   }
   btnPoi.textContent = '⏳';
+  const task = busy('Cerco i punti di interesse…');
   try {
     const pois = await fetchPois(map.getBounds());
     if (poiOn) poiLayer.set(pois);
   } catch {
     toast('POI non disponibili, riprova');
   } finally {
+    task.done();
     btnPoi.textContent = '🌄';
   }
 }
@@ -804,6 +821,9 @@ aiBar.addEventListener('submit', async (e) => {
   aiGo.classList.add('loading');
   aiSummary.hidden = true;
   errBox.hidden = true;
+  // Una sola attività che cambia scritta lungo le fasi: la creazione con l'IA
+  // può durare parecchi secondi ed è la cosa in cui l'attesa si nota di più.
+  const task = busy('Capisco la richiesta…');
   try {
     const req = await parseRideRequest(text);
     aiSummary.textContent = req.summary;
@@ -836,7 +856,8 @@ aiBar.addEventListener('submit', async (e) => {
       const bias = start ? { lng: start.lng, lat: start.lat } : undefined;
       const found: GeocodedPlace[] = [];
       const missing: string[] = [];
-      for (const q of uniqueNames) {
+      for (const [i, q] of uniqueNames.entries()) {
+        task.update(`Verifico i luoghi… (${i + 1}/${uniqueNames.length}) ${q}`);
         const g = await geocodePlace(q, bias);
         if (g) found.push(g);
         else missing.push(q);
@@ -859,6 +880,7 @@ aiBar.addEventListener('submit', async (e) => {
           const vias = found
             .map((g) => new maplibregl.LngLat(g.lng, g.lat))
             .sort((a, b) => bearingBetween(here, a) - bearingBetween(here, b));
+          task.update('Traccio l’anello…');
           const loop = vias.length
             ? await generateLoopVia(here, vias, km, runRoute)
             : { points: [here], route: null };
@@ -898,10 +920,12 @@ aiBar.addEventListener('submit', async (e) => {
     if (req.mode === 'anello' && (req.themes?.length ?? 0) > 0) {
       try {
         aiSummary.textContent = `${req.summary} — l'IA sta scegliendo le tappe…`;
+        task.update('Cerco luoghi a tema…');
         const bearing = dir === 'rand' ? undefined : COMPASS[dir];
         const cands = await fetchCandidates(start, km / 3.1, req.themes ?? [], bearing);
         if (cands.length >= 3) {
           const startName = cachedName(start.lng, start.lat);
+          task.update('L’IA sceglie le tappe…');
           const cur = await curateStops({
             themes: req.themes ?? [],
             candidates: cands.map(({ name, kind, distKm, dir: d }) => ({ name, kind, distKm, dir: d })),
@@ -914,6 +938,7 @@ aiBar.addEventListener('submit', async (e) => {
           if (picked.length) {
             for (const p of picked) seedName(p.lng, p.lat, p.name);
             const vias = picked.map((p) => new maplibregl.LngLat(p.lng, p.lat));
+            task.update('Traccio l’anello…');
             const loop = await generateLoopVia(start, vias, km, runRoute);
             waypoints.replaceAll(loop.points, { silent: true });
             const summaryText =
@@ -953,6 +978,7 @@ aiBar.addEventListener('submit', async (e) => {
     errBox.textContent = err instanceof Error ? err.message : 'IA non disponibile';
     errBox.hidden = false;
   } finally {
+    task.done();
     aiGo.disabled = false;
     aiGo.classList.remove('loading');
   }

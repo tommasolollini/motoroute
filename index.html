@@ -30,6 +30,10 @@
     </header>
     <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden />
     <div id="map" aria-label="Mappa del percorso"></div>
+    <div class="busy" id="busy" role="status" aria-live="polite" hidden>
+      <span class="busy-spin" aria-hidden="true"></span>
+      <span class="busy-label" id="busy-label"></span>
+    </div>
     <button class="fab-regen" id="fab-regen" title="Rifai diverso" aria-label="Rifai diverso" hidden>🎲</button>
     <div class="sheet" id="sheet">
       <button class="sheet-grip" id="sheet-grip" aria-label="Mostra o nascondi il pannello" aria-expanded="true">
