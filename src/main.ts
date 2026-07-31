@@ -14,6 +14,7 @@ import { elevationProfile, profileSvg, curvinessDegPerKm, curvinessLabel } from 
 import { busy } from './busy';
 import { RadarLayer } from './radar';
 import { searchPlaces, hasSearch, probeSearch, type PlaceHit } from './geosearch';
+import { watchConnection, showNotice, isOffline, serviceMessage } from './status';
 import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart, getFavoriteStartId, setFavoriteStart, getFavoriteStart } from './starts';
 import { fetchPois } from './overpass';
@@ -29,6 +30,7 @@ const mapContainer = document.getElementById('map');
 if (!mapContainer) throw new Error('#map container not found');
 
 const map = createMap(mapContainer);
+watchConnection(); // avvisa subito se il dispositivo e' senza rete
 const waypoints = new Waypoints(map);
 
 // Intro splash: fades out after a moment (or on tap).
@@ -372,7 +374,13 @@ async function recompute(alt = 0): Promise<void> {
   } catch (e) {
     if (token !== routeToken) return;
     hideRouteUi();
-    errBox.textContent = e instanceof Error ? e.message : 'Errore nel calcolo del percorso';
+    // Senza rete il messaggio del motore di routing è fuorviante ("failed to
+    // fetch"): meglio dire che manca la connessione, non che l'app è rotta.
+    errBox.textContent = isOffline()
+      ? serviceMessage('Il calcolo del percorso')
+      : e instanceof Error
+        ? e.message
+        : 'Errore nel calcolo del percorso';
     errBox.hidden = false;
   } finally {
     task.done();
@@ -792,7 +800,7 @@ async function refreshPois(): Promise<void> {
     const pois = await fetchPois(map.getBounds());
     if (poiOn) poiLayer.set(pois);
   } catch {
-    toast('POI non disponibili, riprova');
+    toast(serviceMessage('OpenStreetMap (punti di interesse)'));
   } finally {
     task.done();
     btnPoi.textContent = '🌄';
@@ -1188,7 +1196,17 @@ aiBar.addEventListener('submit', async (e) => {
       toast('Tocca la mappa per la destinazione');
     }
   } catch (err) {
-    errBox.textContent = err instanceof Error ? err.message : 'IA non disponibile';
+    // Se cade solo l'IA, il resto dell'app resta usabile: vale la pena dirlo.
+    const msg = isOffline()
+      ? serviceMessage("L'intelligenza artificiale")
+      : serviceMessage(
+          "L'intelligenza artificiale",
+          'Puoi comunque comporre il giro a mano toccando la mappa.',
+        );
+    errBox.textContent = msg;
+    // Anche come avviso sulla mappa: il pannello può essere chiuso e l'errore
+    // lì dentro passerebbe inosservato.
+    showNotice(msg, isOffline() ? 'offline' : 'degraded', 7000);
     errBox.hidden = false;
   } finally {
     task.done();

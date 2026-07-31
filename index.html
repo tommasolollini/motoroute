@@ -32,6 +32,10 @@
     </header>
     <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden />
     <div id="map" aria-label="Mappa del percorso"></div>
+    <div class="notice" id="notice" role="status" aria-live="polite" hidden>
+      <span class="notice-icon" aria-hidden="true">⚠️</span>
+      <span class="notice-text" id="notice-text"></span>
+    </div>
     <div class="radar-time" id="radar-time" hidden>
       <span class="radar-dot" aria-hidden="true"></span>
       <span id="radar-time-label"></span>
