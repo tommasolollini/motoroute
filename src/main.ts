@@ -12,6 +12,7 @@ import { COMPASS, lineDistanceKm, sampleAlongTrack, bearingBetween } from './geo
 import { getQuietProfileId, type Curviness } from './quiet-profile';
 import { elevationProfile, profileSvg, curvinessDegPerKm, curvinessLabel } from './elevation';
 import { busy } from './busy';
+import { RadarLayer } from './radar';
 import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart, getFavoriteStartId, setFavoriteStart, getFavoriteStart } from './starts';
 import { fetchPois } from './overpass';
@@ -791,6 +792,42 @@ async function refreshPois(): Promise<void> {
     btnPoi.textContent = '🌄';
   }
 }
+
+// --- Radar pioggia (spento all'avvio; si accende solo su richiesta) ---
+const btnRadar = document.getElementById('radar-toggle') as HTMLButtonElement;
+const radarTime = document.getElementById('radar-time') as HTMLDivElement;
+const radarTimeLabel = document.getElementById('radar-time-label') as HTMLSpanElement;
+const radar = new RadarLayer(map);
+let radarRefresh: number | undefined;
+
+radar.onFrame = (label, isLatest) => {
+  radarTimeLabel.textContent = isLatest ? `Pioggia ora · ${label}` : `Pioggia · ${label}`;
+  radarTime.classList.toggle('live', isLatest);
+};
+
+btnRadar.addEventListener('click', async () => {
+  if (radar.isActive) {
+    radar.disable();
+    window.clearInterval(radarRefresh);
+    btnRadar.setAttribute('aria-pressed', 'false');
+    radarTime.hidden = true;
+    return;
+  }
+  const task = busy('Carico il radar pioggia…');
+  btnRadar.disabled = true;
+  try {
+    await radar.enable();
+    btnRadar.setAttribute('aria-pressed', 'true');
+    radarTime.hidden = false;
+    // Il radar si aggiorna ogni ~10 minuti: si ricarica l'elenco a metà di quel passo.
+    radarRefresh = window.setInterval(() => void radar.refresh().catch(() => {}), 5 * 60 * 1000);
+  } catch (e) {
+    toast(e instanceof Error ? e.message : 'Radar non disponibile');
+  } finally {
+    task.done();
+    btnRadar.disabled = false;
+  }
+});
 
 btnPoi.addEventListener('click', () => {
   poiOn = !poiOn;

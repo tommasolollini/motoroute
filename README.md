@@ -34,6 +34,7 @@ MotoRoute nasce per rispondere a una domanda semplice: *"portami a fare un bel g
 | ✏️ **Modifica manuale** | Tocca la mappa per aggiungere tappe, trascina i punti per correggere, riordina o rimuovi le tappe. |
 | 📝 **Descrizione con consigli** | L'IA genera una breve descrizione del giro con un **consiglio pratico**. |
 | 🌦️ **Meteo del giro** | Previsioni a partenza, metà e arrivo, sempre visibili. |
+| 🌧️ **Radar pioggia** | Livello attivabile con le precipitazioni in tempo reale sulla mappa, animate sulle ultime due ore. Spento di default. |
 | 🌄 **Punti di interesse** | Panorami, valichi e benzinai reali sovrapposti alla mappa. |
 | 🧭 **Naviga davvero** | Apri il percorso in **Google Maps** (con waypoint e *evita autostrade*) o esporta un **GPX** per OsmAnd e navigatori. |
 | ⭐ **Salva** | Percorsi preferiti e partenze salvate ("basi"), con una **partenza preferita** caricata all'avvio. |
@@ -126,6 +127,7 @@ Quali servizi/tecnologie alimentano ogni pezzo dell'app.
 | Funzionalità | Tecnologia / API | Note |
 |---|---|---|
 | Meteo del giro | **Open-Meteo** | **Keyless** |
+| Radar precipitazioni in tempo reale | **RainViewer** (tile raster) | **Keyless**, uso non commerciale |
 | Apri in Maps con waypoint | **Google Maps** URL (`avoid=highways,tolls`) | Fino a ~8 waypoint campionati |
 | Navigazione esatta | Export/Import **GPX** + **Web Share API** | Per OsmAnd e navigatori |
 | Preferiti e partenze salvate | **IndexedDB** + **localStorage** | Tutto locale sul dispositivo |

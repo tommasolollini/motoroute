@@ -23,6 +23,7 @@
       <div class="logo">Moto<span>Route</span></div>
       <div class="topbar-actions">
         <button class="icon-btn" id="poi-toggle" aria-pressed="false" title="Punti di interesse: panorami, valichi, benzinai">🌄</button>
+        <button class="icon-btn" id="radar-toggle" aria-pressed="false" title="Radar pioggia in tempo reale">🌧️</button>
         <button class="icon-btn" id="btn-starts" title="Partenze salvate" aria-label="Partenze salvate">🏠</button>
         <button class="icon-btn" id="btn-import" title="Importa GPX" aria-label="Importa GPX">📥</button>
         <button class="icon-btn" id="btn-library" title="Percorsi salvati" aria-label="Percorsi salvati">★</button>
@@ -30,6 +31,10 @@
     </header>
     <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden />
     <div id="map" aria-label="Mappa del percorso"></div>
+    <div class="radar-time" id="radar-time" hidden>
+      <span class="radar-dot" aria-hidden="true"></span>
+      <span id="radar-time-label"></span>
+    </div>
     <div class="busy" id="busy" role="status" aria-live="polite" hidden>
       <span class="busy-spin" aria-hidden="true"></span>
       <span class="busy-label" id="busy-label"></span>
