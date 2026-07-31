@@ -15,7 +15,89 @@ export interface Env {
   ALLOWED_ORIGINS?: string;
 }
 
-const GEMINI_MODEL = 'gemini-flash-latest';
+/**
+ * Modelli in ordine di preferenza. Se il primo esaurisce la quota si passa al
+ * successivo: sul piano gratuito i limiti sono contati per modello, quindi il
+ * ripiego dà davvero altre richieste invece di ripetere lo stesso errore.
+ * Dal più capace al più economico — un modello leggero che risponde è meglio
+ * di nessuna risposta.
+ */
+const GEMINI_MODELS = [
+  'gemini-flash-latest',
+  'gemini-flash-lite-latest',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+];
+
+interface GeminiOutcome {
+  ok: boolean;
+  /** Testo JSON prodotto dal modello (solo se ok). */
+  text?: string;
+  /** Modello che ha risposto, per diagnosi. */
+  model?: string;
+  status?: number;
+  quota?: boolean;
+  detail?: string;
+}
+
+/**
+ * Chiama Gemini provando i modelli in sequenza.
+ * Si passa al successivo solo per esaurimento quota (429) o modello non
+ * disponibile (404): un 400 significa richiesta malformata e riprovarla
+ * altrove darebbe lo stesso esito.
+ */
+async function callGemini(key: string, body: unknown): Promise<GeminiOutcome> {
+  let last: GeminiOutcome = { ok: false, status: 0, detail: 'nessun modello contattato' };
+
+  for (const model of GEMINI_MODELS) {
+    let res: Response;
+    try {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      );
+    } catch (e) {
+      last = { ok: false, status: 0, detail: `rete: ${String(e).slice(0, 120)}`, model };
+      continue;
+    }
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
+      };
+      return { ok: true, text: data.candidates?.[0]?.content?.parts?.[0]?.text ?? '', model };
+    }
+
+    let detail = '';
+    try {
+      const err = (await res.json()) as { error?: { message?: string; status?: string } };
+      detail = err.error?.message ?? err.error?.status ?? '';
+    } catch {
+      /* corpo non JSON */
+    }
+    last = { ok: false, status: res.status, quota: res.status === 429, detail: detail.slice(0, 400), model };
+
+    if (res.status !== 429 && res.status !== 404) break; // errore non recuperabile cambiando modello
+  }
+
+  return last;
+}
+
+/** Risposta d'errore uniforme quando nessun modello ha risposto. */
+function geminiFailure(o: GeminiOutcome): { error: string; quota?: boolean; detail?: string } {
+  if (o.quota) {
+    return {
+      error: 'Limite di richieste IA raggiunto su tutti i modelli',
+      quota: true,
+      detail: o.detail,
+    };
+  }
+  return { error: `IA non disponibile (${o.status ?? 0})`, detail: o.detail };
+}
 
 const ORS_DIRECTIONS = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
 
@@ -89,32 +171,24 @@ export default {
         `Restituisci le tappe scelte in ordine di percorrenza e una spiegazione ` +
         `di 1-2 frasi in italiano sul perché questo giro è bello.`;
 
-      const gres = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              responseSchema: {
-                type: 'OBJECT',
-                properties: {
-                  chosen: { type: 'ARRAY', items: { type: 'STRING' } },
-                  explanation: { type: 'STRING' },
-                },
-                required: ['chosen', 'explanation'],
-              },
-              temperature: 0.6,
+      const out = await callGemini(env.GEMINI_API_KEY, {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'OBJECT',
+            properties: {
+              chosen: { type: 'ARRAY', items: { type: 'STRING' } },
+              explanation: { type: 'STRING' },
             },
-          }),
+            required: ['chosen', 'explanation'],
+          },
+          temperature: 0.6,
         },
-      );
-      if (!gres.ok) return json(await geminiError(gres), 502, cors);
-      const gdata = (await gres.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      });
+      if (!out.ok) return json(geminiFailure(out), 502, cors);
       try {
-        return json(JSON.parse(gdata.candidates?.[0]?.content?.parts?.[0]?.text ?? ''), 200, cors);
+        return json({ ...JSON.parse(out.text ?? ''), model: out.model }, 200, cors);
       } catch {
         return json({ error: 'Risposta IA non interpretabile' }, 502, cors);
       }
@@ -276,24 +350,13 @@ export default {
         required: ['mode', 'distance_km', 'direction', 'avoid_highways', 'summary'],
       };
 
-      const gres = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.2 },
-          }),
-        },
-      );
-      if (!gres.ok) return json(await geminiError(gres), 502, cors);
-      const gdata = (await gres.json()) as {
-        candidates?: { content?: { parts?: { text?: string }[] } }[];
-      };
-      const raw = gdata.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      const out = await callGemini(env.GEMINI_API_KEY, {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.2 },
+      });
+      if (!out.ok) return json(geminiFailure(out), 502, cors);
       try {
-        return json(JSON.parse(raw), 200, cors);
+        return json({ ...JSON.parse(out.text ?? ''), model: out.model }, 200, cors);
       } catch {
         return json({ error: 'Risposta IA non interpretabile' }, 502, cors);
       }
@@ -339,30 +402,6 @@ function corsHeaders(origin: string, env: Env): Record<string, string> {
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
-}
-
-/**
- * Errore parlante da Gemini invece del solo codice.
- * Il 429 in particolare può essere "troppe richieste al minuto" oppure "quota
- * giornaliera esaurita": all'utente cambia parecchio, perché nel primo caso
- * basta riprovare fra poco. `quota` distingue i due casi per l'interfaccia.
- */
-async function geminiError(res: Response): Promise<{ error: string; quota?: boolean; detail?: string }> {
-  let detail = '';
-  try {
-    const body = (await res.json()) as { error?: { message?: string; status?: string } };
-    detail = body.error?.message ?? body.error?.status ?? '';
-  } catch {
-    /* corpo non JSON: resta il solo codice */
-  }
-  if (res.status === 429) {
-    return {
-      error: 'Limite di richieste IA raggiunto',
-      quota: true,
-      detail: detail.slice(0, 300),
-    };
-  }
-  return { error: `IA non disponibile (${res.status})`, detail: detail.slice(0, 300) };
 }
 
 interface NominatimResult {
