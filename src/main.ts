@@ -545,6 +545,9 @@ fabRegen.addEventListener('click', () => void doRegen());
 
 // Map tap: manual = append a stop; anello = set the single start point.
 map.on('click', (e) => {
+  // Col menu aperto il tocco serve solo a richiuderlo: aggiungere anche una
+  // tappa sarebbe una modifica che l'utente non ha chiesto.
+  if (menuIsOpen()) return;
   if (mode === 'anello') waypoints.replaceAll([e.lngLat]);
   else waypoints.add(e.lngLat);
 });
@@ -862,18 +865,50 @@ btnRadar.addEventListener('click', async () => {
 const topbarActions = document.getElementById('topbar-actions') as HTMLDivElement;
 const btnMenu = document.getElementById('btn-menu') as HTMLButtonElement;
 
+/** Durata dell'uscita: deve combaciare con .topbar-actions.closing in CSS. */
+const MENU_CLOSE_MS = 150;
+let menuCloseTimer: number | undefined;
+
+function openMenu(): void {
+  window.clearTimeout(menuCloseTimer);
+  topbarActions.classList.remove('closing');
+  topbarActions.classList.remove('collapsed');
+  // Aperte, le icone occupano più spazio del logo: si nasconde per non farcele
+  // finire sopra. La barra può anche andare a capo, quindi si rimisura.
+  topbarEl?.classList.add('menu-open');
+  btnMenu.setAttribute('aria-expanded', 'true');
+  syncTopbarHeight();
+}
+
 btnMenu.addEventListener('click', () => {
-  const open = topbarActions.classList.toggle('collapsed') === false;
-  btnMenu.setAttribute('aria-expanded', String(open));
-  syncTopbarHeight(); // la barra può cambiare altezza andando a capo
+  if (topbarActions.classList.contains('collapsed')) openMenu();
+  else closeMenu();
 });
+
+/** Vero mentre il menu è aperto: serve a non trattare come tappa il tocco
+ *  che serviva solo a richiuderlo. */
+function menuIsOpen(): boolean {
+  return !topbarActions.classList.contains('collapsed');
+}
+
+function closeMenu(): void {
+  if (topbarActions.classList.contains('collapsed')) return;
+  // Le icone escono, POI si nascondono: con display:none immediato l'uscita
+  // non si vedrebbe. Il logo rientra subito, così accompagna il movimento.
+  topbarActions.classList.add('closing');
+  topbarEl?.classList.remove('menu-open');
+  btnMenu.setAttribute('aria-expanded', 'false');
+  window.clearTimeout(menuCloseTimer);
+  menuCloseTimer = window.setTimeout(() => {
+    topbarActions.classList.remove('closing');
+    topbarActions.classList.add('collapsed');
+    syncTopbarHeight();
+  }, MENU_CLOSE_MS);
+}
 
 // Toccare la mappa richiude il menu: da fermi sul telefono si apre per sbaglio.
 map.on('click', () => {
-  if (!topbarActions.classList.contains('collapsed')) {
-    topbarActions.classList.add('collapsed');
-    btnMenu.setAttribute('aria-expanded', 'false');
-  }
+  if (menuIsOpen()) closeMenu();
 });
 
 // --- Ricerca località: aggiunge una tappa scrivendo il nome ---

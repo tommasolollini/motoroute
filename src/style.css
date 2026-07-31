@@ -53,16 +53,56 @@ html, body {
 }
 .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
 .logo span { color: var(--amber); }
-.topbar-actions { display: flex; gap: 8px; pointer-events: auto; }
+.topbar { gap: 8px; }
+/* Il logo resta sempre leggibile; col menu aperto rimpicciolisce quel tanto che
+   basta a far entrare le icone sulla stessa riga. */
+.logo { flex: none; transition: font-size 0.18s ease; }
+.topbar.menu-open .logo { font-size: 15px; }
+
+.topbar-actions {
+  display: flex; gap: 8px; pointer-events: auto;
+  flex-wrap: nowrap; justify-content: flex-end;
+}
+/* Senza flex: none il flexbox comprimeva le icone (38 -> 30px) invece di
+   tenerle alla loro misura: la larghezza dichiarata non basta in riga unica. */
+.icon-btn { flex: none; }
+/* Aperte sono sette: si stringono un po' per stare in riga accanto al logo.
+   32px + 5px di spazio = 254px, che entrano anche su iPhone SE. */
+.topbar-actions:not(.collapsed) { gap: 5px; }
+.topbar-actions:not(.collapsed) .icon-btn { width: 32px; height: 32px; font-size: 15px; }
 /* Su schermo stretto sei icone in fila rubano tutta la barra: restano dietro
    il tasto ☰, che le mostra e le nasconde. */
 .topbar-actions.collapsed .extra { display: none; }
-#btn-menu[aria-expanded="true"] { background: var(--amber); color: #1a0d00; border-color: var(--amber); }
-.topbar-actions .extra { animation: icon-in 0.16s ease-out; }
-@keyframes icon-in { from { opacity: 0; transform: translateY(-4px); } }
-@media (prefers-reduced-motion: reduce) { .topbar-actions .extra { animation: none; } }
+#btn-menu {
+  transition: background 0.18s ease, color 0.18s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#btn-menu[aria-expanded="true"] {
+  background: var(--amber); color: #1a0d00; border-color: var(--amber);
+  transform: rotate(90deg);
+}
+
+/* Apertura a cascata: le icone entrano una dopo l'altra da destra, cioè da
+   sotto il tasto che le ha evocate. In chiusura rientrano insieme, più veloci:
+   uscire deve costare meno attesa che entrare. */
+.topbar-actions .extra { animation: icon-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.topbar-actions .extra:nth-child(6) { animation-delay: 0.02s; }
+.topbar-actions .extra:nth-child(5) { animation-delay: 0.05s; }
+.topbar-actions .extra:nth-child(4) { animation-delay: 0.08s; }
+.topbar-actions .extra:nth-child(3) { animation-delay: 0.11s; }
+.topbar-actions .extra:nth-child(2) { animation-delay: 0.14s; }
+.topbar-actions .extra:nth-child(1) { animation-delay: 0.17s; }
+.topbar-actions.closing .extra { animation: icon-out 0.15s ease-in both; animation-delay: 0s; }
+
+@keyframes icon-in { from { opacity: 0; transform: translate(10px, -6px) scale(0.8); } }
+@keyframes icon-out { to { opacity: 0; transform: translate(10px, -6px) scale(0.8); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar-actions .extra, .topbar-actions.closing .extra { animation: none; }
+  #btn-menu { transition: none; }
+  #btn-menu[aria-expanded="true"] { transform: none; }
+}
 .icon-btn {
-  width: 42px; height: 42px; border-radius: var(--radius-sm);
+  width: 38px; height: 38px; border-radius: var(--radius-sm);
   border: 0.5px solid var(--border); background: rgba(26, 26, 26, 0.7); backdrop-filter: blur(6px);
   color: var(--text); font-size: 17px; display: flex; align-items: center; justify-content: center;
   cursor: pointer;
@@ -102,6 +142,9 @@ html, body {
 #map { flex: 1; width: 100%; height: 100%; }
 .maplibregl-ctrl-group { background: var(--bg2) !important; border: 0.5px solid var(--border) !important; }
 .maplibregl-ctrl-group button + button { border-top: 0.5px solid var(--border) !important; }
+/* Zoom +/- nascosti: sul telefono si zooma con le dita e rubavano spazio.
+   Il tasto "la mia posizione" resta, perché il gesto equivalente non esiste. */
+.maplibregl-ctrl-zoom-in, .maplibregl-ctrl-zoom-out { display: none !important; }
 /* Controlli mappa: 29px di default sono piccoli per il dito in guanti. */
 .maplibregl-ctrl-group button { width: 38px !important; height: 38px !important; }
 /* Zoom e posizione sotto le icone: si usa l'altezza REALE della barra, non un
