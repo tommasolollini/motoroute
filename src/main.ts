@@ -1,7 +1,7 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import maplibregl from 'maplibre-gl';
-import { createMap } from './map';
+import { createMap, MAP_STYLES, getMapTheme, setMapTheme, type MapTheme } from './map';
 import { Waypoints } from './waypoints';
 import { routeThrough, type RouteResult } from './routing';
 import { routeOrs, hasOrs, type RouteOptions } from './routing-ors';
@@ -827,6 +827,27 @@ btnRadar.addEventListener('click', async () => {
     task.done();
     btnRadar.disabled = false;
   }
+});
+
+// --- Tema della mappa (chiaro / scuro), ricordato tra le sessioni ---
+const btnMapTheme = document.getElementById('map-theme') as HTMLButtonElement;
+
+btnMapTheme.addEventListener('click', () => {
+  const next: MapTheme = getMapTheme() === 'scuro' ? 'chiaro' : 'scuro';
+  setMapTheme(next);
+  const task = busy(`Passo alla mappa ${next}…`);
+  map.setStyle(MAP_STYLES[next]);
+  // setStyle azzera sorgenti e livelli: percorso e radar vanno rimessi.
+  // I marker (tappe e POI) sono elementi del DOM, quindi sopravvivono da soli.
+  map.once('style.load', () => {
+    if (currentRoute) drawRoute(map, currentRoute.feature);
+    if (radar.isActive) {
+      radar.destroy();
+      void radar.enable().catch(() => {});
+    }
+    task.done();
+    toast(`Mappa ${next}`);
+  });
 });
 
 btnPoi.addEventListener('click', () => {

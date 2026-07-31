@@ -4,13 +4,33 @@ import maplibregl from 'maplibre-gl';
 export const DEFAULT_CENTER: [number, number] = [12.3888, 43.1107];
 export const DEFAULT_ZOOM = 8;
 
-/** Free, key-less vector tiles from the OpenFreeMap public instance. */
-const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+/**
+ * Free, key-less vector tiles from the OpenFreeMap public instance.
+ * "dark" ha lo sfondo rgb(12,12,12), quasi identico al fondo dell'app, e fa
+ * risaltare l'ambra del percorso; "liberty" resta per chi guida in pieno sole.
+ */
+export const MAP_STYLES = {
+  scuro: 'https://tiles.openfreemap.org/styles/dark',
+  chiaro: 'https://tiles.openfreemap.org/styles/liberty',
+} as const;
+
+export type MapTheme = keyof typeof MAP_STYLES;
+
+const THEME_KEY = 'mr_map_theme';
+
+export function getMapTheme(): MapTheme {
+  const v = localStorage.getItem(THEME_KEY);
+  return v === 'chiaro' ? 'chiaro' : 'scuro'; // scuro di default: l'app è scura
+}
+
+export function setMapTheme(theme: MapTheme): void {
+  localStorage.setItem(THEME_KEY, theme);
+}
 
 export function createMap(container: HTMLElement): maplibregl.Map {
   const map = new maplibregl.Map({
     container,
-    style: STYLE_URL,
+    style: MAP_STYLES[getMapTheme()],
     center: DEFAULT_CENTER,
     zoom: DEFAULT_ZOOM,
     attributionControl: { compact: true },
