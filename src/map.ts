@@ -5,13 +5,18 @@ export const DEFAULT_CENTER: [number, number] = [12.3888, 43.1107];
 export const DEFAULT_ZOOM = 8;
 
 /**
- * Free, key-less vector tiles from the OpenFreeMap public instance.
- * "dark" ha lo sfondo rgb(12,12,12), quasi identico al fondo dell'app, e fa
- * risaltare l'ambra del percorso; "liberty" resta per chi guida in pieno sole.
+ * Stili di mappa, entrambi senza chiave.
+ *
+ * "chiaro" è OpenFreeMap Liberty, il predefinito: leggibile in pieno sole.
+ *
+ * Per lo scuro NON si usa lo stile "dark" di OpenFreeMap: ha sfondo rgb(12,12,12)
+ * e strade rgb(24,24,24), cioè nero su nero, e in pratica si vede una tela nera.
+ * CARTO Dark Matter è pensato come basemap scuro navigabile (93 livelli, con
+ * casing e riempimenti separati) ed espone CORS aperto.
  */
 export const MAP_STYLES = {
-  scuro: 'https://tiles.openfreemap.org/styles/dark',
   chiaro: 'https://tiles.openfreemap.org/styles/liberty',
+  scuro: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
 } as const;
 
 export type MapTheme = keyof typeof MAP_STYLES;
@@ -19,8 +24,7 @@ export type MapTheme = keyof typeof MAP_STYLES;
 const THEME_KEY = 'mr_map_theme';
 
 export function getMapTheme(): MapTheme {
-  const v = localStorage.getItem(THEME_KEY);
-  return v === 'chiaro' ? 'chiaro' : 'scuro'; // scuro di default: l'app è scura
+  return localStorage.getItem(THEME_KEY) === 'scuro' ? 'scuro' : 'chiaro'; // chiaro di default
 }
 
 export function setMapTheme(theme: MapTheme): void {

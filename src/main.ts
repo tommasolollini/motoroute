@@ -836,18 +836,34 @@ btnMapTheme.addEventListener('click', () => {
   const next: MapTheme = getMapTheme() === 'scuro' ? 'chiaro' : 'scuro';
   setMapTheme(next);
   const task = busy(`Passo alla mappa ${next}…`);
+  btnMapTheme.disabled = true;
   map.setStyle(MAP_STYLES[next]);
+
   // setStyle azzera sorgenti e livelli: percorso e radar vanno rimessi.
-  // I marker (tappe e POI) sono elementi del DOM, quindi sopravvivono da soli.
-  map.once('style.load', () => {
-    if (currentRoute) drawRoute(map, currentRoute.feature);
-    if (radar.isActive) {
-      radar.destroy();
-      void radar.enable().catch(() => {});
+  // I marker (tappe e POI) sono elementi del DOM e sopravvivono da soli.
+  //
+  // 'style.load' non scatta in modo affidabile dopo setStyle e l'indicatore
+  // restava acceso per sempre: si usa 'idle' più un tempo massimo, così il
+  // caricamento non può in nessun caso rimanere appeso.
+  let settled = false;
+  const restore = (): void => {
+    if (settled) return;
+    settled = true;
+    try {
+      if (currentRoute) drawRoute(map, currentRoute.feature);
+      if (radar.isActive) {
+        radar.destroy();
+        void radar.enable().catch(() => {});
+      }
+    } catch {
+      /* stile non ancora pronto: i livelli tornano al prossimo ricalcolo */
     }
     task.done();
-    toast(`Mappa ${next}`);
-  });
+    btnMapTheme.disabled = false;
+  };
+
+  map.once('idle', restore);
+  window.setTimeout(restore, 6000);
 });
 
 btnPoi.addEventListener('click', () => {

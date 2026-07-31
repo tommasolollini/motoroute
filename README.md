@@ -35,7 +35,7 @@ MotoRoute nasce per rispondere a una domanda semplice: *"portami a fare un bel g
 | 📝 **Descrizione con consigli** | L'IA genera una breve descrizione del giro con un **consiglio pratico**. |
 | 🌦️ **Meteo del giro** | Previsioni a partenza, metà e arrivo, sempre visibili. |
 | 🌧️ **Radar pioggia** | Livello attivabile con le precipitazioni in tempo reale sulla mappa, animate sulle ultime due ore. Spento di default. |
-| 🌓 **Mappa chiara o scura** | Due stili a un tocco. Scura di default, per intonarsi all'app e far risaltare la linea del percorso; la scelta viene ricordata. |
+| 🌓 **Mappa chiara o scura** | Due stili a un tocco: OpenFreeMap Liberty (chiaro, predefinito) e CARTO Dark Matter per la notte. La scelta viene ricordata. |
 | 🌄 **Punti di interesse** | Panorami, valichi e benzinai reali sovrapposti alla mappa. |
 | 🧭 **Naviga davvero** | Apri il percorso in **Google Maps** (con waypoint e *evita autostrade*) o esporta un **GPX** per OsmAnd e navigatori. |
 | ⭐ **Salva** | Percorsi preferiti e partenze salvate ("basi"), con una **partenza preferita** caricata all'avvio. |
@@ -100,7 +100,7 @@ Quali servizi/tecnologie alimentano ogni pezzo dell'app.
 |---|---|---|
 | App & build | **Vite + TypeScript**, PWA (manifest + service worker) | Static app, installabile |
 | Mappa interattiva | **MapLibre GL JS** | Rendering vettoriale |
-| Tile della mappa | **OpenFreeMap** (stili *dark* e *Liberty*) | Gratuito, **keyless** |
+| Tile della mappa | **OpenFreeMap** (Liberty) + **CARTO Dark Matter** | Gratuiti, **keyless** |
 | Hosting | **Cloudflare Pages** | Tier gratuito |
 
 ### Intelligenza artificiale
