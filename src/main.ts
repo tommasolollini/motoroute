@@ -9,7 +9,8 @@ import { drawRoute, clearRoute, fitToRoute } from './route-layer';
 import { buildGpx, downloadGpx, parseGpx } from './gpx';
 import { generateLoop } from './loop';
 import { COMPASS, lineDistanceKm, sampleAlongTrack, bearingBetween } from './geo';
-import { getQuietProfileId } from './quiet-profile';
+import { getQuietProfileId, type Curviness } from './quiet-profile';
+import { elevationProfile, profileSvg, curvinessDegPerKm, curvinessLabel } from './elevation';
 import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart, getFavoriteStartId, setFavoriteStart, getFavoriteStart } from './starts';
 import { fetchPois } from './overpass';
@@ -56,6 +57,10 @@ const btnClear = document.getElementById('btn-clear') as HTMLButtonElement;
 const btnGps = document.getElementById('btn-gps') as HTMLButtonElement;
 const routeOpts = document.getElementById('route-opts') as HTMLDivElement;
 const optAvoidHw = document.getElementById('opt-avoid-hw') as HTMLInputElement;
+const curvyToggle = document.getElementById('curvy-toggle') as HTMLDivElement;
+const elevBox = document.getElementById('elev-box') as HTMLDivElement;
+const elevChart = document.getElementById('elev-chart') as HTMLDivElement;
+const elevStats = document.getElementById('elev-stats') as HTMLParagraphElement;
 
 // Anello (loop) UI
 const modeToggle = document.getElementById('mode-toggle') as HTMLDivElement;
@@ -165,22 +170,25 @@ let lastLoop: { start: maplibregl.LngLat; targetKm: number } | null = null;
 let regenAlt = 0;
 let lastMovedId: number | null = null; // for the reorder highlight
 
-let quietProfileId: string | null = null;
-void getQuietProfileId().then((id) => {
-  quietProfileId = id;
+let curviness: Curviness = 'equilibrato';
+void getQuietProfileId(curviness).then(() => {
   // Default is "avoid highways" ON; once the profile is ready, apply it.
   if (routeOptions.avoidHighways && waypoints.ready) void recompute();
 });
 
 async function runRoute(points: maplibregl.LngLat[], alt = 0): Promise<RouteResult> {
   // "Evita autostrade" -> quiet-roads profile on BRouter (avoids superstrade too).
+  // Il livello di curvosità sceglie quale delle tre varianti del profilo usare.
   // BRouter can 400 on some geometrically-placed loop points; fall back to ORS,
   // which snaps any point to the nearest road (radiuses=-1) and never fails there.
-  if (routeOptions.avoidHighways && quietProfileId) {
-    try {
-      return await routeThrough(points, quietProfileId, alt);
-    } catch {
-      /* fall back to ORS below */
+  if (routeOptions.avoidHighways) {
+    const profileId = await getQuietProfileId(curviness);
+    if (profileId) {
+      try {
+        return await routeThrough(points, profileId, alt);
+      } catch {
+        /* fall back to ORS below */
+      }
     }
   }
   return hasOrs() ? routeOrs(points, routeOptions, alt) : routeThrough(points, 'car-fast', alt);
@@ -272,12 +280,33 @@ function showRoute(result: RouteResult): void {
   rsKm.textContent = result.distanceKm.toFixed(1);
   rsTime.textContent = formatDrivingTime(result.durationHours);
   routeSummary.hidden = false;
+  renderElevation(result);
   exportRow.hidden = false;
   navRow.hidden = false;
   regenRow.hidden = false;
   scheduleWeather(); // auto-show weather for this route
   updateFab();
   if (sheetCollapsed) setSheetCollapsed(true); // body grew: recompute offset + peek
+}
+
+/**
+ * Profilo altimetrico e curvosità del giro. Entrambi vengono dalla geometria
+ * già scaricata: se il motore non ha restituito le quote, la sezione resta
+ * nascosta invece di mostrare un grafico finto.
+ */
+function renderElevation(result: RouteResult): void {
+  const coords = result.feature.geometry.coordinates as number[][];
+  const prof = elevationProfile(coords);
+  if (!prof) {
+    elevBox.hidden = true;
+    return;
+  }
+  const deg = curvinessDegPerKm(coords);
+  elevChart.innerHTML = profileSvg(prof);
+  elevStats.textContent =
+    `↑ ${prof.ascentM} m · ↓ ${prof.descentM} m · ${prof.minEle}–${prof.maxEle} m` +
+    ` · ${curvinessLabel(deg)} (${Math.round(deg)}°/km)`;
+  elevBox.hidden = false;
 }
 
 /** The floating "regenerate" is shown only when a route exists and the sheet is closed. */
@@ -293,6 +322,7 @@ function hideRouteUi(): void {
   navRow.hidden = true;
   regenRow.hidden = true;
   weatherLine.hidden = true;
+  elevBox.hidden = true;
   fabRegen.hidden = true;
 }
 
@@ -827,8 +857,38 @@ btnGps.addEventListener('click', () => {
 
 optAvoidHw.addEventListener('change', () => {
   routeOptions.avoidHighways = optAvoidHw.checked;
+  syncCurvyAvailability();
   void recompute();
 });
+
+/**
+ * Il livello di curvosità agisce sul profilo BRouter, che l'app usa solo quando
+ * "Evita autostrade" è attivo. Con l'opzione spenta si passa a ORS, che non ha
+ * questo controllo: meglio disabilitarlo e dirlo, che lasciarlo lì senza effetto.
+ */
+function syncCurvyAvailability(): void {
+  const on = routeOptions.avoidHighways;
+  curvyToggle.classList.toggle('is-off', !on);
+  curvyToggle.title = on ? '' : 'Disponibile con «Evita autostrade»';
+  curvyToggle.querySelectorAll('button').forEach((b) => {
+    b.disabled = !on;
+  });
+}
+
+curvyToggle.addEventListener('click', (e) => {
+  const btn = (e.target as HTMLElement).closest('button');
+  if (!btn || btn.disabled) return;
+  const level = btn.dataset.level as Curviness | undefined;
+  if (!level || level === curviness) return;
+  curviness = level;
+  curvyToggle.querySelectorAll('button').forEach((b) => {
+    b.classList.toggle('active', b === btn);
+    b.setAttribute('aria-pressed', String(b === btn));
+  });
+  void recompute();
+});
+
+syncCurvyAvailability();
 
 function currentGpx(): { name: string; text: string } | null {
   if (!currentRoute || !waypoints.ready) return null;

@@ -72,11 +72,23 @@
         <div class="wp-list" id="wp-list" hidden></div>
         <div class="route-opts" id="route-opts" hidden>
           <label class="opt-toggle"><input type="checkbox" id="opt-avoid-hw" checked /> <span>🛣️ Evita autostrade</span></label>
+          <div class="curvy-row">
+            <span class="curvy-label">Curve</span>
+            <div class="curvy-toggle" id="curvy-toggle" role="group" aria-label="Livello di curvosità">
+              <button type="button" data-level="diretto" aria-pressed="false">Diretto</button>
+              <button type="button" data-level="equilibrato" class="active" aria-pressed="true">Medio</button>
+              <button type="button" data-level="tortuoso" aria-pressed="false">Tortuoso</button>
+            </div>
+          </div>
         </div>
         <div class="route-summary" id="route-summary" hidden>
           <div class="rs-metric"><span class="rs-val" id="rs-km">—</span><span class="rs-unit">km</span></div>
           <div class="rs-sep"></div>
           <div class="rs-metric"><span class="rs-val" id="rs-time">—</span><span class="rs-unit">tempo di guida</span></div>
+        </div>
+        <div class="elev-box" id="elev-box" hidden>
+          <div class="elev-chart" id="elev-chart"></div>
+          <p class="elev-stats" id="elev-stats"></p>
         </div>
         <p class="weather-line" id="weather-line" hidden></p>
         <div class="regen-row" id="regen-row" hidden>

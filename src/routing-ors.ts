@@ -34,6 +34,8 @@ export async function routeOrs(points: LngLat[], opts: RouteOptions, alt = 0): P
     coordinates: points.map((p) => [p.lng, p.lat]),
     preference: opts.preference,
     instructions: false,
+    // Restituisce coordinate 3D: alimenta il profilo altimetrico senza una seconda chiamata.
+    elevation: true,
     // Snap each point to the nearest road regardless of distance. Essential for
     // the loop generator, whose waypoints are placed geometrically (off-road).
     radiuses: points.map(() => -1),

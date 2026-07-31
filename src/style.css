@@ -244,6 +244,29 @@ html, body {
 .seg button { padding: 8px 12px; background: transparent; border: none; color: var(--text2); font-size: 13px; cursor: pointer; }
 .seg button.active { background: var(--amber); color: #1a0d00; }
 
+/* CURVOSITÀ */
+.curvy-row { display: flex; align-items: center; gap: 8px; }
+.curvy-label { font-size: 13px; color: var(--text2); }
+.curvy-toggle { display: flex; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.curvy-toggle button { padding: 8px 11px; background: transparent; border: none; color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.curvy-toggle button.active { background: var(--amber); color: #1a0d00; }
+.curvy-toggle.is-off { opacity: 0.45; }
+.curvy-toggle.is-off button { cursor: not-allowed; }
+
+/* PROFILO ALTIMETRICO */
+.elev-box {
+  background: var(--bg2); border: 0.5px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px 8px;
+}
+.elev-chart { line-height: 0; }
+.elev-svg { width: 100%; height: 76px; display: block; overflow: visible; }
+.elev-area { fill: rgba(239, 159, 39, 0.16); stroke: none; }
+.elev-line { fill: none; stroke: var(--amber); stroke-width: 2; stroke-linejoin: round; }
+.elev-stats {
+  margin: 6px 0 0; text-align: center; font-size: 12px; color: var(--text2);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ROUTE SUMMARY */
 .route-summary {
   display: flex; align-items: center; gap: 16px; justify-content: center;
