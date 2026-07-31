@@ -62,7 +62,7 @@ html, body {
 @keyframes icon-in { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .topbar-actions .extra { animation: none; } }
 .icon-btn {
-  width: 38px; height: 38px; border-radius: var(--radius-sm);
+  width: 42px; height: 42px; border-radius: var(--radius-sm);
   border: 0.5px solid var(--border); background: rgba(26, 26, 26, 0.7); backdrop-filter: blur(6px);
   color: var(--text); font-size: 17px; display: flex; align-items: center; justify-content: center;
   cursor: pointer;
@@ -102,8 +102,12 @@ html, body {
 #map { flex: 1; width: 100%; height: 100%; }
 .maplibregl-ctrl-group { background: var(--bg2) !important; border: 0.5px solid var(--border) !important; }
 .maplibregl-ctrl-group button + button { border-top: 0.5px solid var(--border) !important; }
-/* keep zoom/geolocate below the header action buttons */
-.maplibregl-ctrl-top-right { margin-top: calc(58px + env(safe-area-inset-top)); }
+/* Controlli mappa: 29px di default sono piccoli per il dito in guanti. */
+.maplibregl-ctrl-group button { width: 38px !important; height: 38px !important; }
+/* Zoom e posizione sotto le icone: si usa l'altezza REALE della barra, non un
+   valore fisso — su iPhone la barra cresce col notch e i controlli finivano
+   sotto le icone. --topbar-h è misurata da main.ts. */
+.maplibregl-ctrl-top-right { margin-top: calc(var(--topbar-h, 62px) + 8px); }
 
 /* POI TOGGLE + MARKERS */
 .icon-btn[aria-pressed="true"] { background: var(--amber); border-color: var(--amber); color: #1a0d00; }
@@ -139,6 +143,20 @@ html, body {
      limitato al pannello, così altrove la gerarchia dei toni non cambia. */
   --text2: #d0ccc2;
 }
+/* iOS: sotto il pannello restava scoperta una striscia (area del gesto home),
+   che prendeva il colore del corpo pagina — nero pieno — stonando col pannello
+   traslucido. Questo prolungamento la dipinge dello stesso colore, qualunque
+   sia l'altezza dell'inset: se non serve, resta fuori dallo schermo. */
+.sheet::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 140px;
+  background: inherit;
+  pointer-events: none;
+}
 
 /* Floating "regenerate" so it's reachable even with the panel collapsed. */
 .fab-regen {
@@ -157,7 +175,7 @@ html, body {
 .sheet-grip {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   width: 100%; background: transparent; border: none; cursor: grab;
-  padding: 10px 0 10px; -webkit-tap-highlight-color: transparent;
+  padding: 14px 0 12px; -webkit-tap-highlight-color: transparent;
   touch-action: none; /* we handle the drag gesture ourselves */
 }
 .sheet-grip:active { cursor: grabbing; }
@@ -183,7 +201,7 @@ html, body {
 .ai-bar input {
   flex: 1; min-width: 0; background: var(--bg2); border: 0.5px solid var(--border);
   border-radius: var(--radius-sm); padding: 11px 13px; color: var(--text);
-  font-size: 15px; font-family: inherit; outline: none;
+  font-size: 16px; font-family: inherit; outline: none;
 }
 .ai-bar input:focus { border-color: var(--amber); }
 .ai-bar input::placeholder { color: var(--text2); }
@@ -219,7 +237,7 @@ html, body {
 .place-icon { font-size: 14px; flex: none; }
 .place-field input {
   flex: 1; min-width: 0; background: transparent; border: none; outline: none;
-  padding: 11px 0; color: var(--text); font-size: 15px; font-family: inherit;
+  padding: 11px 0; color: var(--text); font-size: 16px; font-family: inherit;
 }
 .place-clear {
   flex: none; background: transparent; border: none; color: var(--text2);
@@ -298,7 +316,7 @@ html, body {
 .wp-text { flex: 1; font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
 .wp-text.empty { color: var(--text2); }
 .wp-move, .wp-del {
-  width: 30px; height: 30px; border-radius: var(--radius-sm); flex: none;
+  width: 38px; height: 38px; border-radius: var(--radius-sm); flex: none;
   background: transparent; border: 0.5px solid var(--border); color: var(--text2);
   font-size: 16px; line-height: 1; cursor: pointer;
 }
@@ -405,12 +423,12 @@ html, body {
 .curvy-row { display: flex; align-items: center; gap: 7px; flex: none; }
 .curvy-label { font-size: 13px; color: var(--text2); }
 .curvy-toggle { display: flex; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-.curvy-toggle button { padding: 7px 9px; background: transparent; border: none; color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.curvy-toggle button { padding: 10px 9px; background: transparent; border: none; color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 /* Sotto i 430px la scritta "Curve" cede il posto ai tre pulsanti, che restano
    comprensibili da soli e devono stare sulla stessa riga dell'opzione. */
 @media (max-width: 430px) {
   .curvy-label { display: none; }
-  .curvy-toggle button { padding: 7px 7px; font-size: 11.5px; }
+  .curvy-toggle button { padding: 10px 8px; font-size: 11.5px; }
   .opt-toggle { font-size: 13px; }
 }
 .curvy-toggle button.active { background: var(--amber); color: #1a0d00; }
