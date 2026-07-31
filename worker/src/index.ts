@@ -121,6 +121,67 @@ export default {
     }
 
     // Forward geocoding (name -> coords) so AI-named places are validated as real.
+    // Ricerca località con più risultati, per la barra "cerca una tappa".
+    // /geocode restituisce un solo esito ed è pensato per la validazione dell'IA;
+    // qui servono alternative fra cui scegliere, come nei suggerimenti di Maps.
+    if (req.method === 'GET' && url.pathname === '/search') {
+      const q = (url.searchParams.get('q') ?? '').trim();
+      if (q.length < 2) return json({ results: [] }, 200, cors);
+      const near = url.searchParams.get('near');
+      const limit = Math.min(8, Math.max(1, Number(url.searchParams.get('limit')) || 6));
+
+      const key = new Request(
+        `https://mr-cache/search?q=${encodeURIComponent(q.toLowerCase())}&near=${near ?? ''}&l=${limit}`,
+      );
+      const cache = caches.default;
+      const cached = await cache.match(key);
+      if (cached) {
+        return new Response(cached.body, { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+
+      let nurl =
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&accept-language=it` +
+        `&limit=${limit}&q=${encodeURIComponent(q)}`;
+      if (near) {
+        const [lat, lon] = near.split(',').map(Number);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          const d = 2.5; // riquadro ampio: suggerisce vicino ma non esclude il resto
+          nurl += `&viewbox=${lon - d},${lat + d},${lon + d},${lat - d}`;
+        }
+      }
+
+      let payload = JSON.stringify({ results: [] });
+      try {
+        const nr = await fetch(nurl, {
+          headers: { 'User-Agent': 'MotoRoute/1.0 (https://motoroute-97c.pages.dev)' },
+        });
+        if (nr.ok) {
+          const arr = (await nr.json()) as NominatimResult[];
+          const results = arr
+            .filter((r) => r.lat && r.lon)
+            .map((r) => {
+              const full = (r.display_name ?? '').split(',').map((s) => s.trim());
+              return {
+                name: r.name || full[0] || q,
+                // contesto breve: comune/provincia, senza ripetere il nome
+                detail: full.slice(1, 4).filter((p) => p && p !== (r.name ?? '')).join(', '),
+                lat: Number(r.lat),
+                lng: Number(r.lon),
+              };
+            });
+          payload = JSON.stringify({ results });
+        }
+      } catch {
+        /* si risponde con l'elenco vuoto */
+      }
+
+      const toCache = new Response(payload, {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=86400' },
+      });
+      ctx.waitUntil(cache.put(key, toCache.clone()));
+      return new Response(payload, { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+
     if (req.method === 'GET' && url.pathname === '/geocode') {
       const q = url.searchParams.get('q');
       if (!q) return json({ error: 'q mancante' }, 400, cors);
@@ -285,6 +346,10 @@ function corsHeaders(origin: string, env: Env): Record<string, string> {
 interface NominatimResult {
   display_name?: string;
   address?: Record<string, string>;
+  /** Presenti nelle risposte di /search (non in quelle di /reverse). */
+  name?: string;
+  lat?: string;
+  lon?: string;
 }
 
 /** Short human label from a Nominatim result, e.g. "Strada Fabrianese, Civitella d'Arna". */

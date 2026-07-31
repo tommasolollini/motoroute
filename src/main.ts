@@ -13,6 +13,7 @@ import { getQuietProfileId, type Curviness } from './quiet-profile';
 import { elevationProfile, profileSvg, curvinessDegPerKm, curvinessLabel } from './elevation';
 import { busy } from './busy';
 import { RadarLayer } from './radar';
+import { searchPlaces, hasSearch, probeSearch, type PlaceHit } from './geosearch';
 import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart, getFavoriteStartId, setFavoriteStart, getFavoriteStart } from './starts';
 import { fetchPois } from './overpass';
@@ -193,6 +194,8 @@ interface AiLoopMemory {
   variant: number;
 }
 let lastAiLoop: AiLoopMemory | null = null;
+/** La barra di ricerca compare solo quando il Worker espone /search. */
+let searchAvailable = false;
 let lastMovedId: number | null = null; // for the reorder highlight
 
 let curviness: Curviness = 'equilibrato';
@@ -290,6 +293,9 @@ function renderSheet(): void {
   actions.hidden = !(hasAny || mode === 'anello');
   routeOpts.hidden = !(hasAny && hasOrs());
   anelloControls.hidden = mode !== 'anello';
+  // La ricerca località serve a comporre il percorso a mano: fuori dal manuale
+  // non ha senso, perché in anello la partenza è una sola.
+  placeSearch.hidden = mode !== 'manuale' || !searchAvailable;
   if (mode === 'anello') {
     anelloHint.textContent = hasAny
       ? 'Partenza pronta. Scegli distanza e direzione, poi genera.'
@@ -827,6 +833,139 @@ btnRadar.addEventListener('click', async () => {
     task.done();
     btnRadar.disabled = false;
   }
+});
+
+// --- Ricerca località: aggiunge una tappa scrivendo il nome ---
+const placeSearch = document.getElementById('place-search') as HTMLDivElement;
+const placeInput = document.getElementById('place-input') as HTMLInputElement;
+const placeClear = document.getElementById('place-clear') as HTMLButtonElement;
+const placeResults = document.getElementById('place-results') as HTMLUListElement;
+
+placeSearch.hidden = true; // resta nascosta finché non si sa che l'endpoint risponde
+if (hasSearch()) {
+  void probeSearch().then((ok) => {
+    searchAvailable = ok;
+    if (ok) renderSheet();
+  });
+}
+
+let placeHits: PlaceHit[] = [];
+let placeActive = -1;
+let placeTimer: number | undefined;
+let placeAbort: AbortController | undefined;
+
+function closePlaceResults(): void {
+  placeResults.hidden = true;
+  placeResults.innerHTML = '';
+  placeInput.setAttribute('aria-expanded', 'false');
+  placeHits = [];
+  placeActive = -1;
+}
+
+function highlightPlace(i: number): void {
+  placeActive = i;
+  [...placeResults.children].forEach((li, n) =>
+    li.setAttribute('aria-selected', String(n === i)),
+  );
+  (placeResults.children[i] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
+}
+
+function addPlace(hit: PlaceHit): void {
+  seedName(hit.lng, hit.lat, hit.name); // il nome compare subito nella lista tappe
+  waypoints.add([hit.lng, hit.lat]);
+  map.flyTo({ center: [hit.lng, hit.lat], zoom: Math.max(map.getZoom(), 11) });
+  placeInput.value = '';
+  placeClear.hidden = true;
+  closePlaceResults();
+  toast(`Tappa aggiunta: ${hit.name}`);
+}
+
+function renderPlaceResults(hits: PlaceHit[]): void {
+  placeHits = hits;
+  placeResults.innerHTML = '';
+  if (!hits.length) {
+    const li = document.createElement('li');
+    li.className = 'place-empty';
+    li.textContent = 'Nessuna località trovata';
+    placeResults.appendChild(li);
+    placeResults.hidden = false;
+    return;
+  }
+  hits.forEach((h, i) => {
+    const li = document.createElement('li');
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-selected', 'false');
+    const name = document.createElement('span');
+    name.className = 'place-name';
+    name.textContent = h.name; // textContent: i nomi arrivano da fuori
+    li.appendChild(name);
+    if (h.detail) {
+      const det = document.createElement('span');
+      det.className = 'place-detail';
+      det.textContent = h.detail;
+      li.appendChild(det);
+    }
+    li.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // evita che il blur chiuda l'elenco prima del click
+      addPlace(h);
+    });
+    li.addEventListener('mouseenter', () => highlightPlace(i));
+    placeResults.appendChild(li);
+  });
+  placeResults.hidden = false;
+  placeInput.setAttribute('aria-expanded', 'true');
+  placeActive = -1;
+}
+
+placeInput.addEventListener('input', () => {
+  const q = placeInput.value.trim();
+  placeClear.hidden = !q;
+  window.clearTimeout(placeTimer);
+  placeAbort?.abort();
+  if (q.length < 2) {
+    closePlaceResults();
+    return;
+  }
+  // Ritardo: Nominatim chiede al massimo una richiesta al secondo.
+  placeTimer = window.setTimeout(() => {
+    const ctrl = new AbortController();
+    placeAbort = ctrl;
+    const near = waypoints.stops[0]?.lngLat ?? map.getCenter();
+    void searchPlaces(q, { lng: near.lng, lat: near.lat }, ctrl.signal)
+      .then((hits) => {
+        if (!ctrl.signal.aborted) renderPlaceResults(hits);
+      })
+      .catch(() => {
+        /* annullata o rete assente: si lascia l'elenco com'è */
+      });
+  }, 450);
+});
+
+placeInput.addEventListener('keydown', (e) => {
+  if (placeResults.hidden || !placeHits.length) {
+    if (e.key === 'Escape') placeInput.blur();
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    highlightPlace((placeActive + 1) % placeHits.length);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    highlightPlace((placeActive - 1 + placeHits.length) % placeHits.length);
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    addPlace(placeHits[placeActive >= 0 ? placeActive : 0]);
+  } else if (e.key === 'Escape') {
+    closePlaceResults();
+  }
+});
+
+placeInput.addEventListener('blur', () => window.setTimeout(closePlaceResults, 120));
+placeClear.addEventListener('click', () => {
+  placeInput.value = '';
+  placeClear.hidden = true;
+  closePlaceResults();
+  placeInput.focus();
 });
 
 // --- Tema della mappa (chiaro / scuro), ricordato tra le sessioni ---

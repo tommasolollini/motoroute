@@ -47,10 +47,16 @@
         <span class="grip-peek" id="grip-peek">Tocca per aprire il pannello</span>
       </button>
       <div class="sheet-body" id="sheet-body">
-        <form class="ai-bar" id="ai-bar" autocomplete="off">
-          <input type="text" id="ai-input" placeholder="Es. anello di 200 km verso le montagne, con curve" aria-label="Descrivi il giro che vuoi" />
-          <button type="submit" class="ai-go" id="ai-go" title="Crea il giro con l'IA"><img src="/icon-192.png" alt="Crea" /></button>
-        </form>
+        <div class="ai-block" id="ai-block">
+          <div class="ai-head">
+            <span class="ai-badge">IA</span>
+            <span class="ai-head-text">Descrivi il giro, lo costruisce l'intelligenza artificiale</span>
+          </div>
+          <form class="ai-bar" id="ai-bar" autocomplete="off">
+            <input type="text" id="ai-input" placeholder="Es. anello di 200 km verso le montagne, con curve" aria-label="Descrivi il giro che vuoi all'intelligenza artificiale" />
+            <button type="submit" class="ai-go" id="ai-go" title="Crea il giro con l'IA"><img src="/icon-192.png" alt="Crea con l'IA" /></button>
+          </form>
+        </div>
         <p class="ai-summary" id="ai-summary" hidden></p>
         <div class="mode-toggle" id="mode-toggle">
           <button type="button" data-mode="manuale" class="active">✏️ Manuale</button>
@@ -77,6 +83,16 @@
             <button class="btn btn-ghost" id="btn-anello-surprise">✦ Sorprendimi</button>
           </div>
           <p class="anello-hint" id="anello-hint">Tocca la mappa (o usa il GPS) per il punto di partenza.</p>
+        </div>
+        <div class="place-search" id="place-search">
+          <div class="place-field">
+            <span class="place-icon" aria-hidden="true">📍</span>
+            <input type="text" id="place-input" autocomplete="off" role="combobox"
+                   aria-expanded="false" aria-controls="place-results" aria-autocomplete="list"
+                   placeholder="Cerca una località da aggiungere" aria-label="Cerca una località da aggiungere come tappa" />
+            <button type="button" class="place-clear" id="place-clear" aria-label="Svuota la ricerca" hidden>✕</button>
+          </div>
+          <ul class="place-results" id="place-results" role="listbox" hidden></ul>
         </div>
         <p class="hint" id="hint">Tocca la mappa per la partenza, poi la destinazione. Ogni tocco aggiunge una tappa; trascina i punti per correggere.</p>
         <div class="wp-list" id="wp-list" hidden></div>
