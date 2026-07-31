@@ -20,6 +20,7 @@
 
 html, body {
   height: 100%;
+  height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif;
@@ -27,7 +28,18 @@ html, body {
   overscroll-behavior: none;
 }
 
-#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+/* L'altezza va dichiarata con dvh, non lasciata a `inset: 0`: come app dalla
+   schermata home iOS non estendeva il contenitore fin sotto la barra del gesto,
+   e lì restava scoperto il nero del corpo pagina. Con il contenitore esteso, la
+   mappa arriva in fondo e il pannello traslucido ci si fonde sopra. */
+#app {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
 
 /* SPLASH */
 #splash {
@@ -54,10 +66,7 @@ html, body {
 .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
 .logo span { color: var(--amber); }
 .topbar { gap: 8px; }
-/* Il logo resta sempre leggibile; col menu aperto rimpicciolisce quel tanto che
-   basta a far entrare le icone sulla stessa riga. */
 .logo { flex: none; transition: font-size 0.18s ease; }
-.topbar.menu-open .logo { font-size: 15px; }
 
 .topbar-actions {
   display: flex; gap: 8px; pointer-events: auto;
@@ -66,10 +75,14 @@ html, body {
 /* Senza flex: none il flexbox comprimeva le icone (38 -> 30px) invece di
    tenerle alla loro misura: la larghezza dichiarata non basta in riga unica. */
 .icon-btn { flex: none; }
-/* Aperte sono sette: si stringono un po' per stare in riga accanto al logo.
-   32px + 5px di spazio = 254px, che entrano anche su iPhone SE. */
+/* Aperte sono sette. A misura piena servono 7x38 + spazi + logo: su schermi
+   larghi (Pro Max, Plus) ci stanno e NON si tocca nulla. Solo sotto i 415px
+   icone e logo si stringono, perché l'alternativa sarebbe farli sforare. */
 .topbar-actions:not(.collapsed) { gap: 5px; }
-.topbar-actions:not(.collapsed) .icon-btn { width: 32px; height: 32px; font-size: 15px; }
+@media (max-width: 414px) {
+  .topbar-actions:not(.collapsed) .icon-btn { width: 32px; height: 32px; font-size: 15px; }
+  .topbar.menu-open .logo { font-size: 15px; }
+}
 /* Su schermo stretto sei icone in fila rubano tutta la barra: restano dietro
    il tasto ☰, che le mostra e le nasconde. */
 .topbar-actions.collapsed .extra { display: none; }
