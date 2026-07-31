@@ -31,6 +31,21 @@ if (!mapContainer) throw new Error('#map container not found');
 
 const map = createMap(mapContainer);
 watchConnection(); // avvisa subito se il dispositivo e' senza rete
+
+/**
+ * Altezza reale della barra superiore.
+ * Era un valore fisso di 56px, ma su iPhone la barra cresce con il notch
+ * (safe-area-inset-top) e arriva oltre i 100px: banner e avvisi finivano
+ * sopra le icone. Meglio misurarla che indovinarla.
+ */
+const topbarEl = document.querySelector('.topbar') as HTMLElement | null;
+function syncTopbarHeight(): void {
+  if (!topbarEl) return;
+  document.documentElement.style.setProperty('--topbar-h', `${Math.round(topbarEl.offsetHeight)}px`);
+}
+syncTopbarHeight();
+window.addEventListener('resize', syncTopbarHeight);
+window.addEventListener('orientationchange', () => window.setTimeout(syncTopbarHeight, 250));
 const waypoints = new Waypoints(map);
 
 // Intro splash: fades out after a moment (or on tap).
@@ -840,6 +855,24 @@ btnRadar.addEventListener('click', async () => {
   } finally {
     task.done();
     btnRadar.disabled = false;
+  }
+});
+
+// --- Menu delle icone in alto ---
+const topbarActions = document.getElementById('topbar-actions') as HTMLDivElement;
+const btnMenu = document.getElementById('btn-menu') as HTMLButtonElement;
+
+btnMenu.addEventListener('click', () => {
+  const open = topbarActions.classList.toggle('collapsed') === false;
+  btnMenu.setAttribute('aria-expanded', String(open));
+  syncTopbarHeight(); // la barra può cambiare altezza andando a capo
+});
+
+// Toccare la mappa richiude il menu: da fermi sul telefono si apre per sbaglio.
+map.on('click', () => {
+  if (!topbarActions.classList.contains('collapsed')) {
+    topbarActions.classList.add('collapsed');
+    btnMenu.setAttribute('aria-expanded', 'false');
   }
 });
 

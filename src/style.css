@@ -54,6 +54,13 @@ html, body {
 .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
 .logo span { color: var(--amber); }
 .topbar-actions { display: flex; gap: 8px; pointer-events: auto; }
+/* Su schermo stretto sei icone in fila rubano tutta la barra: restano dietro
+   il tasto ☰, che le mostra e le nasconde. */
+.topbar-actions.collapsed .extra { display: none; }
+#btn-menu[aria-expanded="true"] { background: var(--amber); color: #1a0d00; border-color: var(--amber); }
+.topbar-actions .extra { animation: icon-in 0.16s ease-out; }
+@keyframes icon-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .topbar-actions .extra { animation: none; } }
 .icon-btn {
   width: 38px; height: 38px; border-radius: var(--radius-sm);
   border: 0.5px solid var(--border); background: rgba(26, 26, 26, 0.7); backdrop-filter: blur(6px);
@@ -308,8 +315,11 @@ html, body {
 .wp-gps:active { background: var(--bg3); }
 
 /* ROUTE OPTIONS */
-.route-opts { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.opt-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+/* Una riga sola: su iPhone la curvosità andava a capo sotto "Evita autostrade".
+   I comandi si stringono invece di impilarsi. */
+.route-opts { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: nowrap; }
+.opt-toggle { display: flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--text); cursor: pointer; min-width: 0; }
+.opt-toggle span { white-space: nowrap; }
 .opt-toggle input { width: 18px; height: 18px; accent-color: var(--amber); }
 .seg { display: flex; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
 .seg button { padding: 8px 12px; background: transparent; border: none; color: var(--text2); font-size: 13px; cursor: pointer; }
@@ -392,10 +402,17 @@ html, body {
 }
 
 /* CURVOSITÀ */
-.curvy-row { display: flex; align-items: center; gap: 8px; }
+.curvy-row { display: flex; align-items: center; gap: 7px; flex: none; }
 .curvy-label { font-size: 13px; color: var(--text2); }
 .curvy-toggle { display: flex; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-.curvy-toggle button { padding: 8px 11px; background: transparent; border: none; color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.curvy-toggle button { padding: 7px 9px; background: transparent; border: none; color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+/* Sotto i 430px la scritta "Curve" cede il posto ai tre pulsanti, che restano
+   comprensibili da soli e devono stare sulla stessa riga dell'opzione. */
+@media (max-width: 430px) {
+  .curvy-label { display: none; }
+  .curvy-toggle button { padding: 7px 7px; font-size: 11.5px; }
+  .opt-toggle { font-size: 13px; }
+}
 .curvy-toggle button.active { background: var(--amber); color: #1a0d00; }
 .curvy-toggle.is-off { opacity: 0.45; }
 .curvy-toggle.is-off button { cursor: not-allowed; }
