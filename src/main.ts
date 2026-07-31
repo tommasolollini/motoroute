@@ -168,6 +168,29 @@ let routeToken = 0;
 const routeOptions: RouteOptions = { avoidHighways: true, preference: 'recommended' };
 let lastLoop: { start: maplibregl.LngLat; targetKm: number } | null = null;
 let regenAlt = 0;
+
+/**
+ * Contesto del giro creato dall'IA, tenuto da parte per "Rifai diverso".
+ * Senza questo il rigenera ricadeva sul ventaglio casuale e perdeva la richiesta:
+ * chiedevi la Val d'Orcia e ti ritrovavi altrove.
+ * `pool` è il bacino di tappe reali fra cui pescare (più ampio di quelle usate
+ * quando le tappe le ha scelte l'IA fra i candidati OSM); quando le tappe sono
+ * state nominate esplicitamente coincide con `stops`, perché sono obbligatorie.
+ */
+interface AiLoopMemory {
+  start: maplibregl.LngLat;
+  km: number;
+  /** Lunghezza del giro proposto per primo: è l'aspettativa dell'utente, e le
+   *  rigenerazioni ci restano vicine invece di gonfiarsi di decine di km. */
+  baseKm: number;
+  /** Distanza attualmente mostrata: serve a evitare di riproporre lo stesso giro. */
+  shownKm: number;
+  stops: { name: string; lng: number; lat: number }[];
+  pool: { name: string; lng: number; lat: number }[];
+  text: string;
+  variant: number;
+}
+let lastAiLoop: AiLoopMemory | null = null;
 let lastMovedId: number | null = null; // for the reorder highlight
 
 let curviness: Curviness = 'equilibrato';
@@ -347,12 +370,97 @@ async function recompute(alt = 0): Promise<void> {
 
 waypoints.onChange = () => {
   lastLoop = null; // a manual edit means it's no longer the generated loop
+  lastAiLoop = null;
   regenAlt = 0;
   renderSheet();
   void recompute();
 };
 
+/**
+ * Rifà il giro dell'IA restando fedele alla richiesta: cambia le tappe pescando
+ * dallo stesso bacino tematico, oppure — se le tappe erano nominate e quindi
+ * obbligatorie — cambia l'ordine di percorrenza e la variante di strada.
+ */
+async function regenAiLoop(m: AiLoopMemory): Promise<void> {
+  m.variant += 1;
+
+  let chosen: AiLoopMemory['stops'];
+  if (m.pool.length > m.stops.length) {
+    // Bacino più ampio: altre tappe, stesso tema.
+    const n = m.stops.length;
+    const off = (m.variant * n) % m.pool.length;
+    chosen = Array.from({ length: n }, (_, i) => m.pool[(off + i) % m.pool.length]);
+  } else {
+    // Tappe obbligatorie: si tengono tutte.
+    chosen = m.stops.slice();
+  }
+
+  // Ordine geografico attorno alla partenza: tiene l'anello compatto e la distanza
+  // vicina a quella chiesta. La varietà viene dal verso di percorrenza e dalla
+  // variante di strada — un ordine rimescolato allungherebbe il giro di parecchio.
+  // La partenza non deve ricomparire fra le tappe (l'anello ci torna da solo,
+  // altrimenti in lista si legge "Pienza → Pienza → ..."), e niente doppioni.
+  const near = (a: { lng: number; lat: number }, b: { lng: number; lat: number }): boolean =>
+    Math.abs(a.lng - b.lng) < 0.0015 && Math.abs(a.lat - b.lat) < 0.0015;
+  chosen = chosen.filter(
+    (c, i) => !near(c, m.start) && chosen.findIndex((o) => near(o, c)) === i,
+  );
+  if (!chosen.length) throw new Error('Nessuna tappa utilizzabile');
+
+  const ang = (s: { lng: number; lat: number }): number =>
+    bearingBetween(m.start, new maplibregl.LngLat(s.lng, s.lat));
+  chosen.sort((a, b) => ang(a) - ang(b));
+  if (m.variant % 2 === 1) chosen.reverse();
+
+  for (const c of chosen) seedName(c.lng, c.lat, c.name);
+  const vias = chosen.map((c) => new maplibregl.LngLat(c.lng, c.lat));
+
+  // Prova qualche variante di strada e tiene quella più vicina al giro originale:
+  // le alternative di BRouter a volte allungano di decine di km, e un "rifai"
+  // che raddoppia la distanza non è quello che si è chiesto.
+  const off = (km: number): number => Math.abs(km - m.baseKm) / Math.max(m.baseKm, 1);
+  const tries: { points: maplibregl.LngLat[]; km: number; route: RouteResult }[] = [];
+  for (let t = 0; t < 3; t++) {
+    try {
+      const idx = (m.variant + t) % 4;
+      const cand = await generateLoopVia(m.start, vias, m.km, (pts) => runRoute(pts, idx));
+      if (cand.route) tries.push({ points: cand.points, km: cand.route.distanceKm, route: cand.route });
+    } catch {
+      /* variante non percorribile: prova la successiva */
+    }
+  }
+  if (!tries.length) throw new Error('Nessun percorso');
+
+  // Scarta le varianti che si allontanano troppo dal giro chiesto, poi preferisce
+  // una davvero diversa da quella già a schermo: premere "Rifai" e non vedere
+  // cambiare nulla è peggio che non avere il pulsante.
+  const inRange = tries.filter((c) => off(c.km) <= 0.3);
+  const usable = inRange.length ? inRange : tries;
+  const changed = usable.filter((c) => Math.abs(c.km - m.shownKm) > 0.5);
+  const best = (changed.length ? changed : usable).sort((a, b) => off(a.km) - off(b.km))[0];
+
+  m.shownKm = best.km;
+  waypoints.replaceAll(best.points, { silent: true });
+  showRoute(best.route);
+  aiSummary.textContent = m.text;
+  aiSummary.hidden = false;
+}
+
 async function doRegen(): Promise<void> {
+  if (lastAiLoop) {
+    const label = btnRegen.textContent;
+    btnRegen.disabled = true;
+    btnRegen.textContent = 'Ricalcolo…';
+    try {
+      await regenAiLoop(lastAiLoop);
+    } catch {
+      toast('Non riesco a rifare diversamente questo giro');
+    } finally {
+      btnRegen.disabled = false;
+      btnRegen.textContent = label;
+    }
+    return;
+  }
   if (lastLoop) {
     // A generated loop: make a different one (fresh random direction, same start + distance).
     await doGenerate('rand', lastLoop.start, lastLoop.targetKm);
@@ -424,6 +532,7 @@ async function doGenerate(
     if (token !== routeToken) return;
     waypoints.replaceAll(loop.points, { silent: true });
     lastLoop = { start, targetKm }; // remember for "Rifai diverso"
+    lastAiLoop = null; // un anello generato a mano non è un giro tematico dell'IA
     regenAlt = 0;
     // Switch to manual: the loop is now an editable route, so a tap ADDS a stop
     // instead of resetting the start (which would wipe the loop). setMode renders.
@@ -490,6 +599,7 @@ function loadRouteData(
 ): void {
   setMode('manuale');
   lastLoop = null; // a loaded/imported route isn't a regenerable loop
+  lastAiLoop = null;
   regenAlt = 0;
   waypoints.replaceAll(points, { silent: true });
   renderSheet();
@@ -754,7 +864,19 @@ aiBar.addEventListener('submit', async (e) => {
             : { points: [here], route: null };
           if (loop.route) {
             waypoints.replaceAll(loop.points, { silent: true });
-            lastLoop = { start: here, targetKm: km };
+            // Luoghi chiesti esplicitamente: obbligatori, il rigenera non li scarta.
+            const named = found.map((g) => ({ name: g.name, lng: g.lng, lat: g.lat }));
+            lastAiLoop = {
+              start: here,
+              km,
+              baseKm: loop.route.distanceKm,
+              shownKm: loop.route.distanceKm,
+              stops: named,
+              pool: named,
+              text: req.description || req.summary,
+              variant: 0,
+            };
+            lastLoop = null;
             regenAlt = 0;
             setMode('manuale');
             showRoute(loop.route);
@@ -794,11 +916,24 @@ aiBar.addEventListener('submit', async (e) => {
             const vias = picked.map((p) => new maplibregl.LngLat(p.lng, p.lat));
             const loop = await generateLoopVia(start, vias, km, runRoute);
             waypoints.replaceAll(loop.points, { silent: true });
-            lastLoop = { start, targetKm: km };
+            const summaryText =
+              req.description || (cur.explanation ? `${req.summary} — ${cur.explanation}` : req.summary);
+            // Tappe scelte dall'IA: il rigenera può pescarne altre dallo stesso bacino.
+            lastAiLoop = {
+              start,
+              km,
+              baseKm: loop.route.distanceKm,
+              shownKm: loop.route.distanceKm,
+              stops: picked.map((p) => ({ name: p.name, lng: p.lng, lat: p.lat })),
+              pool: cands.map((c) => ({ name: c.name, lng: c.lng, lat: c.lat })),
+              text: summaryText,
+              variant: 0,
+            };
+            lastLoop = null;
             regenAlt = 0;
             setMode('manuale');
             showRoute(loop.route);
-            aiSummary.textContent = req.description || (cur.explanation ? `${req.summary} — ${cur.explanation}` : req.summary);
+            aiSummary.textContent = summaryText;
             setSheetCollapsed(true);
             return;
           }
