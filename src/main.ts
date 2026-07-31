@@ -19,7 +19,7 @@ import { cachedName, reverseGeocode, seedName } from './reverse';
 import { getStarts, addStart, deleteStart, renameStart, getFavoriteStartId, setFavoriteStart, getFavoriteStart } from './starts';
 import { fetchPois } from './overpass';
 import { PoiLayer } from './poi-layer';
-import { parseRideRequest, hasAi, geocodePlace, curateStops, type GeocodedPlace } from './ai';
+import { parseRideRequest, hasAi, geocodePlace, curateStops, AiError, type GeocodedPlace } from './ai';
 import { fetchCandidates } from './candidates';
 import { rideWeather } from './weather';
 import { generateLoopVia } from './loop';
@@ -1196,13 +1196,17 @@ aiBar.addEventListener('submit', async (e) => {
       toast('Tocca la mappa per la destinazione');
     }
   } catch (err) {
-    // Se cade solo l'IA, il resto dell'app resta usabile: vale la pena dirlo.
+    // Quota esaurita e guasto sono cose diverse: nel primo caso riprovare
+    // subito non serve, e conviene indirizzare agli strumenti manuali.
+    const quota = err instanceof AiError && err.quota;
     const msg = isOffline()
       ? serviceMessage("L'intelligenza artificiale")
-      : serviceMessage(
-          "L'intelligenza artificiale",
-          'Puoi comunque comporre il giro a mano toccando la mappa.',
-        );
+      : quota
+        ? 'Limite di richieste dell’IA raggiunto: riprende più tardi. Intanto puoi comporre il giro a mano — cerca le località dalla barra qui sotto o tocca la mappa.'
+        : serviceMessage(
+            "L'intelligenza artificiale",
+            'Puoi comunque comporre il giro a mano toccando la mappa.',
+          );
     errBox.textContent = msg;
     // Anche come avviso sulla mappa: il pannello può essere chiuso e l'errore
     // lì dentro passerebbe inosservato.

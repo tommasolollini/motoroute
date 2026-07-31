@@ -111,7 +111,7 @@ export default {
           }),
         },
       );
-      if (!gres.ok) return json({ error: `IA non disponibile (${gres.status})` }, 502, cors);
+      if (!gres.ok) return json(await geminiError(gres), 502, cors);
       const gdata = (await gres.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
       try {
         return json(JSON.parse(gdata.candidates?.[0]?.content?.parts?.[0]?.text ?? ''), 200, cors);
@@ -287,9 +287,7 @@ export default {
           }),
         },
       );
-      if (!gres.ok) {
-        return json({ error: `IA non disponibile (${gres.status})` }, 502, cors);
-      }
+      if (!gres.ok) return json(await geminiError(gres), 502, cors);
       const gdata = (await gres.json()) as {
         candidates?: { content?: { parts?: { text?: string }[] } }[];
       };
@@ -341,6 +339,30 @@ function corsHeaders(origin: string, env: Env): Record<string, string> {
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
+}
+
+/**
+ * Errore parlante da Gemini invece del solo codice.
+ * Il 429 in particolare può essere "troppe richieste al minuto" oppure "quota
+ * giornaliera esaurita": all'utente cambia parecchio, perché nel primo caso
+ * basta riprovare fra poco. `quota` distingue i due casi per l'interfaccia.
+ */
+async function geminiError(res: Response): Promise<{ error: string; quota?: boolean; detail?: string }> {
+  let detail = '';
+  try {
+    const body = (await res.json()) as { error?: { message?: string; status?: string } };
+    detail = body.error?.message ?? body.error?.status ?? '';
+  } catch {
+    /* corpo non JSON: resta il solo codice */
+  }
+  if (res.status === 429) {
+    return {
+      error: 'Limite di richieste IA raggiunto',
+      quota: true,
+      detail: detail.slice(0, 300),
+    };
+  }
+  return { error: `IA non disponibile (${res.status})`, detail: detail.slice(0, 300) };
 }
 
 interface NominatimResult {

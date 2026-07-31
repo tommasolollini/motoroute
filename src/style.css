@@ -335,21 +335,26 @@ html, body {
 @media (prefers-reduced-motion: reduce) { .radar-time.live .radar-dot { animation: none; } }
 
 /* AVVISO DI DISSERVIZIO */
+/* Fondo scuro pieno, non traslucido: il banner galleggia sulla mappa, che ora
+   è chiara di default, e il testo chiaro su rosso trasparente era illeggibile.
+   Il colore resta solo nel bordo e nella striscia laterale. */
 .notice {
   position: absolute; top: calc(var(--topbar-h, 56px) + 10px);
   left: 12px; right: 12px; z-index: 11;
   display: flex; align-items: flex-start; gap: 9px;
-  background: rgba(226, 75, 74, 0.14); backdrop-filter: blur(10px);
-  border: 0.5px solid rgba(226, 75, 74, 0.55); border-radius: var(--radius-sm);
-  padding: 10px 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  background: rgba(18, 17, 15, 0.96); backdrop-filter: blur(10px);
+  border: 1px solid rgba(226, 75, 74, 0.7);
+  border-left: 4px solid var(--red);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
 }
 .notice[hidden] { display: none; }
 .notice[data-kind="degraded"] {
-  background: rgba(239, 159, 39, 0.14);
-  border-color: rgba(239, 159, 39, 0.55);
+  border-color: rgba(239, 159, 39, 0.7);
+  border-left-color: var(--amber);
 }
 .notice-icon { flex: none; font-size: 14px; line-height: 1.4; }
-.notice-text { font-size: 13px; line-height: 1.45; color: var(--text); }
+.notice-text { font-size: 13px; line-height: 1.45; color: #f2eee6; }
 
 /* INDICATORE DI ATTIVITÀ */
 .busy {

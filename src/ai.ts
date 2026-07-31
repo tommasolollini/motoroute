@@ -71,15 +71,30 @@ export function hasAi(): boolean {
   return Boolean(WORKER);
 }
 
+/** Errore dell'IA che distingue il limite di quota da un guasto generico. */
+export class AiError extends Error {
+  readonly quota: boolean;
+  constructor(message: string, quota = false) {
+    super(message);
+    this.name = 'AiError';
+    this.quota = quota;
+  }
+}
+
 export async function parseRideRequest(text: string): Promise<RideRequest> {
-  if (!WORKER) throw new Error('IA non configurata');
+  if (!WORKER) throw new AiError('IA non configurata');
   const res = await fetch(`${WORKER.replace(/\/$/, '')}/ai/parse`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
   });
-  const data = (await res.json().catch(() => ({}))) as Partial<RideRequest> & { error?: string };
-  if (!res.ok || data.error) throw new Error(data.error ?? 'IA non disponibile');
+  const data = (await res.json().catch(() => ({}))) as Partial<RideRequest> & {
+    error?: string;
+    quota?: boolean;
+  };
+  if (!res.ok || data.error) {
+    throw new AiError(data.error ?? 'IA non disponibile', Boolean(data.quota));
+  }
   if (!data.mode || typeof data.distance_km !== 'number') throw new Error('Richiesta non compresa');
   return data as RideRequest;
 }
