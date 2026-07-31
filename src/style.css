@@ -121,9 +121,16 @@ html, body {
   display: flex; flex-direction: column;
   max-height: 82vh;
   max-height: 82dvh; /* keeps the grip reachable on iOS even with tall content */
-  background: rgba(15, 15, 15, 0.80);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  /* Solo lo sfondo è traslucido: i comandi hanno un fondo proprio e restano
+     pieni. La sfocatura più marcata compensa la maggiore trasparenza,
+     ammorbidendo la mappa sotto senza schiarirla. */
+  background: rgba(15, 15, 15, 0.70);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  /* Il testo secondario appoggia direttamente sullo sfondo traslucido, quindi
+     sopra la mappa: qui va più chiaro per restare leggibile. L'override è
+     limitato al pannello, così altrove la gerarchia dei toni non cambia. */
+  --text2: #d0ccc2;
 }
 
 /* Floating "regenerate" so it's reachable even with the panel collapsed. */
